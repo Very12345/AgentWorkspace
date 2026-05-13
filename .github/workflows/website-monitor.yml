@@ -1,40 +1,27 @@
-# .github/workflows/website-monitor.yml
-name: Website Monitor
+
+
+
+
+name: Website Daily Monitor
 
 on:
   schedule:
-    # 每小时运行一次（cron 语法，UTC 时间）
-    - cron: '0 8 * * *'
-  # 也可手动触发
-  workflow_dispatch:
+    # 每天 UTC 00:00 运行（北京时间 08:00）
+    - cron: '0 0 * * *'
+  workflow_dispatch:   # 保留手动触发，方便测试
 
 jobs:
   check-website:
     runs-on: ubuntu-latest
     steps:
       - name: Check if website is alive
-        id: health_check
         run: |
-          # 替换成你要检测的网站 URL
-          URL="ttps://veryonly123-my-team-docs.hf.space"
+          URL="https://veryonly123-my-team-docs.hf.space"   # 替换成你要检测的网址
           STATUS_CODE=$(curl -o /dev/null -s -w "%{http_code}\n" $URL)
-          echo "status_code=$STATUS_CODE" >> $GITHUB_OUTPUT
+          echo "HTTP status code: $STATUS_CODE"
           if [ $STATUS_CODE -eq 200 ]; then
-            echo "Ok Website is up (200)"
+            echo "1 Website is up"
           else
-            echo "Wrong! Website returned $STATUS_CODE"
+            echo "0 Website returned $STATUS_CODE"
             exit 1
           fi
-
-      # 可选：当失败时创建 Issue 通知自己
-      - name: Create issue on failure
-        if: failure()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: `Wrong! Website down: ${new Date().toLocaleString()}`,
-              body: `The website ${process.env.URL} returned non-200 status.\nSee workflow run: ${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
-            })
