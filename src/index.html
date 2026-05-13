@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>团队协作控制台</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"
+          onload="renderMathInElement(document.body, {delimiters: [{left: '$$', right: '$$', display: true},{left: '$', right: '$', display: false}]})"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; background:#f4f6fa; color:#1e293b; padding:20px; }
+    .container { max-width:1200px; margin:0 auto; }
+    .card { background:white; border-radius:16px; padding:24px; margin-bottom:20px; box-shadow:0 2px 10px rgba(0,0,0,0.03); }
+    h2 { font-size:1.3rem; font-weight:600; margin-bottom:16px; color:#0f172a; display:flex; align-items:center; gap:8px; }
+    table { width:100%; border-collapse:collapse; margin-bottom:16px; }
+    th,td { text-align:left; padding:10px 12px; border-bottom:1px solid #f1f5f9; }
+    th { font-weight:600; color:#475569; font-size:0.9rem; }
+    .currentUser { font-weight:600; color:#2563eb; }
+    .status-online { background:#dcfce7; color:#16a34a; }
+    .status-offline { background:#fef2f2; color:#dc2626; }
+    .status-badge { padding:4px 12px; border-radius:20px; font-size:0.85
