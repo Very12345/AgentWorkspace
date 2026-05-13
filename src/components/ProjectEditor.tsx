@@ -585,7 +585,7 @@ export default function ProjectEditor({ projectName, projectDescription, current
           </div>
         </>
       ) : (
-        <div className="preview-only">
+        <div className="preview-panel mb-4">
           <label className="font-semibold block mb-2">文档内容</label>
           <div
             id="previewContent"
