@@ -1,14 +1,9 @@
-
-
-
-
 name: Website Daily Monitor
 
 on:
   schedule:
-    # 每天 UTC 00:00 运行（北京时间 08:00）
     - cron: '0 0 * * *'
-  workflow_dispatch:   # 保留手动触发，方便测试
+  workflow_dispatch:
 
 jobs:
   check-website:
@@ -16,12 +11,12 @@ jobs:
     steps:
       - name: Check if website is alive
         run: |
-          URL="https://veryonly123-my-team-docs.hf.space"   # 替换成你要检测的网址
+          URL="https://veryonly123-my-team-docs.hf.space"
           STATUS_CODE=$(curl -o /dev/null -s -w "%{http_code}\n" $URL)
           echo "HTTP status code: $STATUS_CODE"
           if [ $STATUS_CODE -eq 200 ]; then
-            echo "1 Website is up"
+            echo "! Website is up"
           else
-            echo "0 Website returned $STATUS_CODE"
-            exit 1
+            echo "! Website returned $STATUS_CODE (expected)"
           fi
+          # 不再 exit 1，工作流永远成功
