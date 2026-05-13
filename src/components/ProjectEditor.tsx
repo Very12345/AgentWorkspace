@@ -45,7 +45,6 @@ export default function ProjectEditor({ projectName, projectDescription, current
   const [showPreview, setShowPreview] = useState(false)
   const [newFileName, setNewFileName] = useState('')
   const [showNewFile, setShowNewFile] = useState(false)
-  const [previewHtml, setPreviewHtml] = useState('')
   const [showGitHubSync, setShowGitHubSync] = useState(false)
   const [githubRepo, setGithubRepo] = useState('')
   const [githubFilePath, setGithubFilePath] = useState('')
@@ -100,9 +99,6 @@ export default function ProjectEditor({ projectName, projectDescription, current
   }, [currentFile, projectData])
 
   const renderPreview = useCallback(() => {
-    const html = marked.parse(editorContent || '')
-    setPreviewHtml(html)
-    
     setTimeout(() => {
       const preview = document.getElementById('previewContent')
       if (preview && window.renderMathInElement) {
@@ -116,7 +112,13 @@ export default function ProjectEditor({ projectName, projectDescription, current
         } catch {}
       }
     }, 0)
-  }, [editorContent])
+  }, [])
+
+  useEffect(() => {
+    if (!isEditing) {
+      renderPreview()
+    }
+  }, [isEditing, editorContent, renderPreview])
 
   const handleSelectFile = (filename: string) => {
     const file = projectData.files.find(f => f.name === filename)
@@ -483,8 +485,6 @@ export default function ProjectEditor({ projectName, projectDescription, current
                   className="p-3 bg-white border border-gray-200 rounded-lg hover:border-blue-300 cursor-pointer"
                   onClick={() => {
                     setSelectedCommit(commit)
-                    setShowPreview(true)
-                    setPreviewHtml(marked.parse(commit.content || ''))
                   }}
                 >
                   <div className="flex justify-between items-start">
@@ -534,7 +534,7 @@ export default function ProjectEditor({ projectName, projectDescription, current
               <div
                 id="previewContent"
                 className="bg-gray-50 rounded-xl p-4 min-h-[300px] overflow-y-auto prose max-w-none"
-                dangerouslySetInnerHTML={{ __html: previewHtml }}
+                dangerouslySetInnerHTML={{ __html: marked.parse(editorContent || '') }}
               />
             </div>
           )}
@@ -588,6 +588,7 @@ export default function ProjectEditor({ projectName, projectDescription, current
         <div className="preview-only">
           <label className="font-semibold block mb-2">文档内容</label>
           <div
+            id="previewContent"
             className="bg-gray-50 rounded-xl p-4 min-h-[400px] overflow-y-auto prose max-w-none"
             dangerouslySetInnerHTML={{ __html: marked.parse(editorContent || '') }}
           />
