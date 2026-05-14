@@ -354,4 +354,53 @@ export default function EvaluationPanel({ projectName, tasks, onTasksUpdated }: 
                     
                     {task.createdAt && (
                       <div className="text-xs text-gray-400">
-                        创建时间: {new Date(task.createdAt
+                        创建时间: {new Date(task.createdAt).toLocaleString('zh-CN')}
+                      </div>
+                    )}
+                    
+                    {task.startedAt && (
+                      <div className="text-xs text-gray-400">
+                        开始时间: {new Date(task.startedAt).toLocaleString('zh-CN')}
+                      </div>
+                    )}
+                    
+                    {task.finishedAt && (
+                      <div className="text-xs text-gray-400">
+                        完成时间: {new Date(task.finishedAt).toLocaleString('zh-CN')}
+                      </div>
+                    )}
+                    
+                    {task.status === 'error' && (
+                      <div className="text-sm text-red-600 mt-2">
+                        <strong>错误:</strong> {task.error}
+                      </div>
+                    )}
+                    
+                    {task.status === 'complete' && task.result && (
+                      <div className="mt-2">
+                        <div className="text-sm font-medium text-gray-700 mb-1">测评结果:</div>
+                        <div 
+                          className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg preview-panel"
+                          dangerouslySetInnerHTML={{ __html: (window as any).marked?.parse(task.result) || task.result }}
+                        />
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            downloadEvaluationResult(task.taskId, solverToken || undefined, task.backupData);
+                          }}
+                          className="mt-2 px-3 py-1 bg-green-500 text-white text-xs rounded-lg hover:bg-green-600"
+                        >
+                          下载完整结果 (ZIP)
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
