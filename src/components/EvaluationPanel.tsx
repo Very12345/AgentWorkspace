@@ -241,7 +241,7 @@ export default function EvaluationPanel({ projectName, tasks, onTasksUpdated }: 
                       }
                     }
                   }}
-                  className="absolute top-2 right-2 text-xs text-red-500 hover:text-red-700"
+                  className="absolute top-2 right-2 px-2 py-1 text-xs bg-red-100 text-red-600 rounded hover:bg-red-200"
                 >
                   删除
                 </button>
