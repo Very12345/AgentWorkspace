@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import type { ProjectData, ProjectFile, Commit } from '@/types'
+import type { ProjectData, ProjectFile, Commit, EvaluationTask } from '@/types'
 import {
   loadProjectData,
   saveProjectFile,
@@ -9,8 +9,11 @@ import {
   saveProjectData,
   updateProject,
   syncFromGitHub,
-  generateDiff
+  generateDiff,
+  syncGitHubRepoToProject,
+  pushToGitHub
 } from '@/lib/api'
+import EvaluationPanel from './EvaluationPanel'
 
 interface ProjectEditorProps {
   projectName: string
@@ -48,12 +51,21 @@ export default function ProjectEditor({ projectName, projectDescription, current
   const [showGitHubSync, setShowGitHubSync] = useState(false)
   const [githubRepo, setGithubRepo] = useState('')
   const [githubFilePath, setGithubFilePath] = useState('')
+  const [githubBranch, setGithubBranch] = useState('')
   const [syncLoading, setSyncLoading] = useState(false)
   const [renameFile, setRenameFile] = useState<string | null>(null)
   const [renameName, setRenameName] = useState('')
   const [showSettings, setShowSettings] = useState(false)
   const [settingsName, setSettingsName] = useState(projectName)
   const [settingsDescription, setSettingsDescription] = useState(projectDescription)
+  const [showRepoSync, setShowRepoSync] = useState(false)
+  const [showPushToGitHub, setShowPushToGitHub] = useState(false)
+  const [githubToken, setGithubToken] = useState('')
+  const [pushMessage, setPushMessage] = useState('')
+  const [showEvaluation, setShowEvaluation] = useState(false)
+  const [pushLoading, setPushLoading] = useState(false)
+  const [showSyncedFiles, setShowSyncedFiles] = useState(false)
+  const [syncedFilesList, setSyncedFilesList] = useState<string[]>([])
 
   const loadDoc = useCallback(async () => {
     const data = await loadProjectData(projectName)
@@ -186,7 +198,15 @@ export default function ProjectEditor({ projectName, projectDescription, current
     }
     
     setSyncLoading(true)
-    const success = await syncFromGitHub(githubRepo, githubFilePath, projectName, currentFile, false, currentUser)
+    const success = await syncFromGitHub(
+      githubRepo, 
+      githubFilePath, 
+      githubBranch || undefined,
+      projectName, 
+      currentFile, 
+      false, 
+      currentUser
+    )
     setSyncLoading(false)
     
     if (success) {
@@ -210,7 +230,8 @@ export default function ProjectEditor({ projectName, projectDescription, current
     setSyncLoading(true)
     const success = await syncFromGitHub(
       syncConfig.repo, 
-      syncConfig.path, 
+      syncConfig.path || currentFile, 
+      syncConfig.branch,
       projectName, 
       currentFile, 
       syncConfig.autoSync, 
@@ -237,6 +258,65 @@ export default function ProjectEditor({ projectName, projectDescription, current
       await saveProjectData(projectName, data)
       await loadDoc()
     }
+  }
+
+  const handleRepoSync = async () => {
+    if (!githubRepo) {
+      alert('请填写仓库地址')
+      return
+    }
+    
+    setSyncLoading(true)
+    const result = await syncGitHubRepoToProject(githubRepo, projectName, githubBranch || undefined)
+    setSyncLoading(false)
+    
+    if (result.success) {
+      setSyncedFilesList(result.syncedFiles)
+      setShowSyncedFiles(true)
+      setShowRepoSync(false)
+      await loadDoc()
+    } else {
+      alert('同步失败，请检查配置')
+    }
+  }
+
+  const handlePushToGitHub = async () => {
+    if (!githubToken || !pushMessage.trim()) {
+      alert('请填写GitHub Token和提交信息')
+      return
+    }
+    
+    const file = projectData.files.find(f => f.name === currentFile)
+    if (!file?.githubSync) {
+      alert('当前文件未配置GitHub同步')
+      return
+    }
+    
+    setPushLoading(true)
+    const success = await pushToGitHub(
+      file.githubSync.repo,
+      file.githubSync.path || file.name,
+      file.content,
+      pushMessage.trim(),
+      githubToken,
+      file.githubSync.branch
+    )
+    setPushLoading(false)
+    
+    if (success) {
+      alert('推送成功')
+      setShowPushToGitHub(false)
+      setPushMessage('')
+    } else {
+      alert('推送失败，请检查Token和权限')
+    }
+  }
+
+  const handleTasksUpdated = async (tasks: EvaluationTask[]) => {
+    const data = await loadProjectData(projectName)
+    data.evaluationTasks = tasks
+    await saveProjectData(projectName, data)
+    setProjectData({ ...data })
   }
 
   const handleRenameFile = async () => {
@@ -297,8 +377,15 @@ export default function ProjectEditor({ projectName, projectDescription, current
           {projectDescription && (
             <p className="text-sm text-gray-500 mt-1">{projectDescription}</p>
           )}
+          {projectData.githubRepoSync && (
+            <p className="text-sm text-gray-500 mt-1">
+              关联仓库: {projectData.githubRepoSync.repo}
+              {projectData.githubRepoSync.branch && ` (分支: ${projectData.githubRepoSync.branch})`}
+            </p>
+          )}
         </div>
         <div className="flex gap-2 flex-wrap">
+          {/* 项目级操作 */}
           <button
             onClick={() => setShowSettings(true)}
             className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50"
@@ -306,88 +393,138 @@ export default function ProjectEditor({ projectName, projectDescription, current
             更多设置
           </button>
           <button
-            onClick={() => setShowHistory(!showHistory)}
-            className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50"
-          >
-            历史记录
-          </button>
-          <button
-            onClick={handleDownload}
-            className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50"
-          >
-            下载文件
-          </button>
-          {currentFileData?.githubSync ? (
-            <>
-              <button
-                onClick={handlePullFromGitHub}
-                disabled={syncLoading}
-                className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-              >
-                从GitHub拉取
-              </button>
-              <button
-                onClick={async () => {
-                  const sync = currentFileData.githubSync!
-                  const newAutoSync = !sync.autoSync
-                  if (newAutoSync) {
-                    hasAutoSynced.current.add(currentFile)
-                  } else {
-                    hasAutoSynced.current.delete(currentFile)
-                  }
-                  sync.autoSync = newAutoSync
-                  await saveProjectData(projectName, projectData)
-                  await loadDoc()
-                }}
-                className={`px-4 py-2 rounded-lg ${
-                  currentFileData.githubSync!.autoSync
-                    ? 'bg-green-100 text-green-700 border border-green-300'
-                    : 'border border-gray-300 text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                {currentFileData.githubSync!.autoSync ? '停止自动同步' : '启用自动同步'}
-              </button>
-              <button
-                onClick={handleRemoveGitHubSync}
-                className="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50"
-              >
-                取消同步
-              </button>
-            </>
-          ) : (
-            <button
-              onClick={() => {
-                setShowGitHubSync(true)
-                setGithubRepo('')
-                setGithubFilePath('')
-              }}
-              className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50"
-            >
-              GitHub同步
-            </button>
-          )}
-          <button
             onClick={() => {
-              if (currentFileData?.githubSync?.autoSync && !isEditing) {
-                alert('此文件已启用自动同步，无法编辑。请先取消同步后再编辑。')
-                return
-              }
-              setIsEditing(!isEditing)
+              setShowRepoSync(true)
+              const repoSync = projectData.githubRepoSync
+              setGithubRepo(repoSync?.repo || '')
+              setGithubBranch(repoSync?.branch || '')
             }}
-            disabled={currentFileData?.githubSync?.autoSync && !isEditing}
-            className={`px-4 py-2 rounded-lg font-medium ${
-              isEditing 
-                ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' 
-                : 'bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed'
+            className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50"
+          >
+            同步仓库
+          </button>
+          <button
+            onClick={() => setShowEvaluation(!showEvaluation)}
+            className={`px-4 py-2 rounded-lg ${
+              showEvaluation
+                ? 'bg-blue-50 border-blue-300 text-blue-700'
+                : 'border border-gray-300 text-gray-600 hover:bg-gray-50'
             }`}
           >
-            {isEditing ? '取消编辑' : '编辑文档'}
+            测评管理
           </button>
+        </div>
+      </div>
+
+      {/* 当前文件操作区 */}
+      <div className="mb-4 p-4 bg-gray-50 rounded-xl">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-sm text-gray-600 mr-2">当前文件:</span>
+            <span className="font-medium">{currentFile || '(默认)'}</span>
+            {currentFileData?.isReadOnly && <span className="text-xs text-gray-400">(只读)</span>}
+          </div>
+          
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setShowHistory(!showHistory)}
+              className="px-3 py-1.5 text-sm border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50"
+            >
+              历史记录
+            </button>
+            <button
+              onClick={handleDownload}
+              className="px-3 py-1.5 text-sm border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50"
+            >
+              下载文件
+            </button>
+            {currentFileData?.githubSync && (
+              <button
+                onClick={() => {
+                  setShowPushToGitHub(true)
+                  setGithubToken('')
+                  setPushMessage('')
+                }}
+                className="px-3 py-1.5 text-sm border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50"
+              >
+                推送到GitHub
+              </button>
+            )}
+            {currentFileData?.githubSync ? (
+              <>
+                <button
+                  onClick={handlePullFromGitHub}
+                  disabled={syncLoading}
+                  className="px-3 py-1.5 text-sm border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                >
+                  从GitHub拉取
+                </button>
+                <button
+                  onClick={async () => {
+                    const sync = currentFileData.githubSync!
+                    const newAutoSync = !sync.autoSync
+                    if (newAutoSync) {
+                      hasAutoSynced.current.add(currentFile)
+                    } else {
+                      hasAutoSynced.current.delete(currentFile)
+                    }
+                    sync.autoSync = newAutoSync
+                    await saveProjectData(projectName, projectData)
+                    await loadDoc()
+                  }}
+                  className={`px-3 py-1.5 text-sm rounded-lg ${
+                    currentFileData.githubSync!.autoSync
+                      ? 'bg-green-100 text-green-700 border border-green-300'
+                      : 'border border-gray-300 text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  {currentFileData.githubSync!.autoSync ? '停止自动同步' : '启用自动同步'}
+                </button>
+                <button
+                  onClick={handleRemoveGitHubSync}
+                  className="px-3 py-1.5 text-sm border border-red-300 text-red-600 rounded-lg hover:bg-red-50"
+                >
+                  取消同步
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => {
+                  setShowGitHubSync(true)
+                  const syncConfig = currentFileData?.githubSync
+                  setGithubRepo(syncConfig?.repo || '')
+                  setGithubFilePath(syncConfig?.path || '')
+                  setGithubBranch(syncConfig?.branch || '')
+                }}
+                className="px-3 py-1.5 text-sm border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50"
+              >
+                GitHub同步
+              </button>
+            )}
+            <button
+              onClick={() => {
+                if (currentFileData?.githubSync?.autoSync && !isEditing) {
+                  alert('此文件已启用自动同步，无法编辑。请先取消同步后再编辑。')
+                  return
+                }
+                setIsEditing(!isEditing)
+              }}
+              disabled={currentFileData?.githubSync?.autoSync && !isEditing}
+              className={`px-3 py-1.5 text-sm rounded-lg font-medium ${
+                isEditing 
+                  ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' 
+                  : 'bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed'
+              }`}
+            >
+              {isEditing ? '取消编辑' : '编辑文档'}
+            </button>
+          </div>
         </div>
         
         {currentFileData?.githubSync && (
-          <div className={`text-sm ${currentFileData.githubSync.autoSync ? 'text-yellow-700' : 'text-gray-500'}`}>
+          <div className={`text-sm mt-2 ${currentFileData.githubSync.autoSync ? 'text-yellow-700' : 'text-gray-500'}`}>
             已同步: {currentFileData.githubSync.repo}/{currentFileData.githubSync.path}
+            {currentFileData.githubSync.branch && ` (分支: ${currentFileData.githubSync.branch})`}
             {currentFileData.githubSync.autoSync && ' (自动同步，仅读)'}
           </div>
         )}
@@ -424,7 +561,7 @@ export default function ProjectEditor({ projectName, projectDescription, current
                         : 'text-gray-700 hover:text-blue-600'
                     }`}
                   >
-                    {file.name || '(默认)'}
+                    {file.name || '(默认)'}{file.isReadOnly && <span className="text-xs text-gray-400 ml-2">(只读)</span>}
                   </button>
                 )}
               </div>
@@ -620,6 +757,16 @@ export default function ProjectEditor({ projectName, projectDescription, current
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg"
                 />
               </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">分支 (可选)</label>
+                <input
+                  type="text"
+                  value={githubBranch}
+                  onChange={(e) => setGithubBranch(e.target.value)}
+                  placeholder="main"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                />
+              </div>
               <p className="text-xs text-gray-400">
                 从指定仓库的文件同步内容（仅公开仓库）
                 <br />
@@ -683,6 +830,156 @@ export default function ProjectEditor({ projectName, projectDescription, current
                 className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50"
               >
                 取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showRepoSync && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold mb-4">同步整个仓库</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">仓库 (username/repo)</label>
+                <input
+                  type="text"
+                  value={githubRepo}
+                  onChange={(e) => setGithubRepo(e.target.value)}
+                  placeholder="user/project-name"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">分支 (可选)</label>
+                <input
+                  type="text"
+                  value={githubBranch}
+                  onChange={(e) => setGithubBranch(e.target.value)}
+                  placeholder="main"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                />
+              </div>
+              <p className="text-xs text-gray-400">
+                同步整个仓库的所有文件（仅公开仓库）
+                <br />
+                Markdown文件可编辑，其他文件为只读
+              </p>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={handleRepoSync}
+                disabled={syncLoading}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
+              >
+                {syncLoading ? '同步中...' : '同步仓库'}
+              </button>
+              <button
+                onClick={() => setShowRepoSync(false)}
+                className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPushToGitHub && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold mb-4">推送到GitHub</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">GitHub Token</label>
+                <input
+                  type="password"
+                  value={githubToken}
+                  onChange={(e) => setGithubToken(e.target.value)}
+                  placeholder="ghp_xxx"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">提交信息</label>
+                <input
+                  type="text"
+                  value={pushMessage}
+                  onChange={(e) => setPushMessage(e.target.value)}
+                  placeholder="更新文档"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                />
+              </div>
+              <p className="text-xs text-gray-400">
+                需要具有仓库写入权限的GitHub Personal Access Token
+                <br />
+                仅推送当前编辑的文件
+              </p>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={handlePushToGitHub}
+                disabled={pushLoading}
+                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50"
+              >
+                {pushLoading ? '推送中...' : '推送'}
+              </button>
+              <button
+                onClick={() => setShowPushToGitHub(false)}
+                className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEvaluation && (
+        <div className="fixed right-0 top-0 bottom-0 w-[480px] bg-white shadow-2xl border-l border-gray-200 z-40 overflow-hidden flex flex-col">
+          <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
+            <h3 className="font-semibold text-gray-800">测评管理</h3>
+            <button
+              onClick={() => setShowEvaluation(false)}
+              className="text-gray-500 hover:text-gray-700 hover:bg-gray-200 w-8 h-8 flex items-center justify-center rounded-lg transition-colors"
+            >
+              ×
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4">
+            <EvaluationPanel
+              projectName={projectName}
+              tasks={projectData.evaluationTasks || []}
+              onTasksUpdated={handleTasksUpdated}
+            />
+          </div>
+        </div>
+      )}
+
+      {showSyncedFiles && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-lg mx-4">
+            <h3 className="text-lg font-semibold mb-4">仓库同步成功!</h3>
+            <p className="text-sm text-gray-600 mb-3">
+              共同步 {syncedFilesList.length} 个文件:
+            </p>
+            <div className="max-h-64 overflow-y-auto border border-gray-200 rounded-lg">
+              <ul className="divide-y divide-gray-100">
+                {syncedFilesList.map((file, index) => (
+                  <li key={index} className="px-3 py-2 text-sm flex items-center gap-2">
+                    <span className="text-green-500">✓</span>
+                    <span>{file}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={() => setShowSyncedFiles(false)}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+              >
+                确定
               </button>
             </div>
           </div>

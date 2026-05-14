@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { Project } from '@/types'
-import { loadProjects, createProject } from '@/lib/api'
+import { loadProjects, createProject, deleteProject } from '@/lib/api'
 
 interface ProjectListProps {
   onSelectProject: (projectName: string) => void
@@ -34,6 +34,18 @@ export default function ProjectList({ onSelectProject }: ProjectListProps) {
       await fetchProjects()
     } else {
       alert('项目已存在或创建失败')
+    }
+  }
+
+  const handleDelete = async (name: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (confirm(`确定要删除项目 "${name}" 吗？此操作不可恢复。`)) {
+      const success = await deleteProject(name)
+      if (success) {
+        await fetchProjects()
+      } else {
+        alert('删除失败')
+      }
     }
   }
 
@@ -95,10 +107,17 @@ export default function ProjectList({ onSelectProject }: ProjectListProps) {
             <div
               key={project.name}
               onClick={() => onSelectProject(project.name)}
-              className="project-card bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all"
+              className="project-card bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all relative group"
             >
               <div className="font-semibold text-gray-800 text-base mb-1">{project.name}</div>
               <div className="text-sm text-gray-500">{project.description || '暂无概述'}</div>
+              <button
+                onClick={(e) => handleDelete(project.name, e)}
+                className="absolute top-2 right-2 px-2 py-1 text-xs text-red-500 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                title="删除项目"
+              >
+                删除
+              </button>
             </div>
           ))
         )}
