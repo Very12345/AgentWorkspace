@@ -361,7 +361,7 @@ export async function fetchGitHubFileContent(repo: string, filePath: string, bra
     };
 
     if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+      headers['Authorization'] = `token ${token}`;
     }
 
     let url = `https://api.github.com/repos/${repo}/contents/${filePath}`;
@@ -716,7 +716,7 @@ export async function fetchGitHubRepoFiles(repo: string, branch?: string, path: 
     };
 
     if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+      headers['Authorization'] = `token ${token}`;
     }
 
     let url = `https://api.github.com/repos/${repo}/contents/${path}`;
@@ -825,7 +825,7 @@ export async function pushToGitHub(repo: string, filePath: string, content: stri
   try {
     const headers: HeadersInit = {
       'Accept': 'application/vnd.github.v3+json',
-      'Authorization': `Bearer ${token}`
+      'Authorization': `token ${token}`
     };
 
     const getUrl = branch 
