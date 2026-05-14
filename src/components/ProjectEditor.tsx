@@ -251,12 +251,30 @@ export default function ProjectEditor({ projectName, projectDescription, current
     }
   }
 
-  const handleRemoveGitHubSync = async () => {
+  const handleRemoveGitHubSync = async (fileName?: string) => {
+    const targetFile = fileName || currentFile
     const data = await loadProjectData(projectName)
-    const file = data.files.find(f => f.name === currentFile)
+    const file = data.files.find(f => f.name === targetFile)
     if (file) {
       file.githubSync = undefined
-      hasAutoSynced.current.delete(currentFile)
+      hasAutoSynced.current.delete(targetFile)
+      await saveProjectData(projectName, data)
+      await loadDoc()
+    }
+  }
+
+  const handleToggleAutoSync = async (fileName?: string) => {
+    const targetFile = fileName || currentFile
+    const data = await loadProjectData(projectName)
+    const file = data.files.find(f => f.name === targetFile)
+    if (file?.githubSync) {
+      const newAutoSync = !file.githubSync.autoSync
+      if (newAutoSync) {
+        hasAutoSynced.current.add(targetFile)
+      } else {
+        hasAutoSynced.current.delete(targetFile)
+      }
+      file.githubSync.autoSync = newAutoSync
       await saveProjectData(projectName, data)
       await loadDoc()
     }
@@ -476,28 +494,17 @@ export default function ProjectEditor({ projectName, projectDescription, current
                   从GitHub拉取
                 </button>
                 <button
-                  onClick={async () => {
-                    const sync = currentFileData.githubSync!
-                    const newAutoSync = !sync.autoSync
-                    if (newAutoSync) {
-                      hasAutoSynced.current.add(currentFile)
-                    } else {
-                      hasAutoSynced.current.delete(currentFile)
-                    }
-                    sync.autoSync = newAutoSync
-                    await saveProjectData(projectName, projectData)
-                    await loadDoc()
-                  }}
+                  onClick={() => handleToggleAutoSync(currentFile)}
                   className={`px-3 py-1.5 text-sm rounded-lg ${
-                    currentFileData.githubSync!.autoSync
+                    currentFileData?.githubSync?.autoSync
                       ? 'bg-green-100 text-green-700 border border-green-300'
                       : 'border border-gray-300 text-gray-600 hover:bg-gray-50'
                   }`}
                 >
-                  {currentFileData.githubSync!.autoSync ? '停止自动同步' : '启用自动同步'}
+                  {currentFileData?.githubSync?.autoSync ? '停止自动同步' : '启用自动同步'}
                 </button>
                 <button
-                  onClick={handleRemoveGitHubSync}
+                  onClick={() => handleRemoveGitHubSync(currentFile)}
                   className="px-3 py-1.5 text-sm border border-red-300 text-red-600 rounded-lg hover:bg-red-50"
                 >
                   取消同步
