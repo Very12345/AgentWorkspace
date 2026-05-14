@@ -267,7 +267,7 @@ export default function ProjectEditor({ projectName, projectDescription, current
     }
     
     setSyncLoading(true)
-    const result = await syncGitHubRepoToProject(githubRepo, projectName, githubBranch || undefined)
+    const result = await syncGitHubRepoToProject(githubRepo, projectName, githubBranch || undefined, githubToken || undefined)
     setSyncLoading(false)
     
     if (result.success) {

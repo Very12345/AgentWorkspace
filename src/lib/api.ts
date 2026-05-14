@@ -354,11 +354,15 @@ export async function syncFromGitHub(repo: string, filePath: string, branch: str
   }
 }
 
-export async function fetchGitHubFileContent(repo: string, filePath: string, branch?: string): Promise<string | null> {
+export async function fetchGitHubFileContent(repo: string, filePath: string, branch?: string, token?: string): Promise<string | null> {
   try {
     const headers: HeadersInit = {
       'Accept': 'application/vnd.github.v3+json'
     };
+
+    if (token) {
+      headers['Authorization'] = `token ${token}`;
+    }
 
     let url = `https://api.github.com/repos/${repo}/contents/${filePath}`;
     if (branch) {
@@ -366,13 +370,17 @@ export async function fetchGitHubFileContent(repo: string, filePath: string, bra
     }
 
     const resp = await fetch(url, { headers });
-    if (!resp.ok) return null;
+    if (!resp.ok) {
+      console.error('GitHub API error:', resp.status, resp.statusText);
+      return null;
+    }
     
     const content = await resp.json();
     if (content.type !== 'file') return null;
     
     return decodeBase64ToUTF8(content.content);
-  } catch {
+  } catch (error) {
+    console.error('GitHub fetch error:', error);
     return null;
   }
 }
@@ -620,11 +628,15 @@ export async function waitForEvaluation(taskId: string, onProgress?: (status: Ev
   }
 }
 
-export async function fetchGitHubRepoFiles(repo: string, branch?: string, path: string = ''): Promise<{ name: string; path: string; type: 'file' | 'dir'; content?: string }[] | null> {
+export async function fetchGitHubRepoFiles(repo: string, branch?: string, path: string = '', token?: string): Promise<{ name: string; path: string; type: 'file' | 'dir'; content?: string }[] | null> {
   try {
     const headers: HeadersInit = {
       'Accept': 'application/vnd.github.v3+json'
     };
+
+    if (token) {
+      headers['Authorization'] = `token ${token}`;
+    }
 
     let url = `https://api.github.com/repos/${repo}/contents/${path}`;
     if (branch) {
@@ -632,7 +644,10 @@ export async function fetchGitHubRepoFiles(repo: string, branch?: string, path: 
     }
 
     const resp = await fetch(url, { headers });
-    if (!resp.ok) return null;
+    if (!resp.ok) {
+      console.error('GitHub API error:', resp.status, resp.statusText);
+      return null;
+    }
     
     const contents = await resp.json();
     if (!Array.isArray(contents)) return null;
@@ -671,9 +686,9 @@ export async function fetchGitHubRepoFiles(repo: string, branch?: string, path: 
   }
 }
 
-export async function syncGitHubRepoToProject(repo: string, projectName: string, branch?: string): Promise<{ success: boolean; syncedFiles: string[] }> {
+export async function syncGitHubRepoToProject(repo: string, projectName: string, branch?: string, token?: string): Promise<{ success: boolean; syncedFiles: string[] }> {
   try {
-    const files = await fetchGitHubRepoFiles(repo, branch);
+    const files = await fetchGitHubRepoFiles(repo, branch, '', token);
     if (!files) return { success: false, syncedFiles: [] };
 
     const data = await loadProjectData(projectName);
