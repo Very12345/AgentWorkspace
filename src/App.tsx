@@ -15,6 +15,8 @@ export default function App() {
   const [showRestore, setShowRestore] = useState(false)
   const [restoreLoading, setRestoreLoading] = useState(false)
   const [projects, setProjects] = useState<Project[]>([])
+  const [showSettings, setShowSettings] = useState(false)
+  const [githubToken, setGithubToken] = useState('')
 
   const fetchProjects = async () => {
     const data = await loadProjects()
@@ -26,6 +28,10 @@ export default function App() {
     if (savedUser) {
       setCurrentUser(savedUser)
       setView('main')
+    }
+    const savedToken = localStorage.getItem('github_token')
+    if (savedToken) {
+      setGithubToken(savedToken)
     }
   }, [])
 
@@ -84,6 +90,18 @@ export default function App() {
     event.target.value = ''
   }
 
+  const handleSaveGithubToken = () => {
+    if (githubToken) {
+      localStorage.setItem('github_token', githubToken)
+      alert('GitHub Token 已保存')
+      setShowSettings(false)
+    } else {
+      localStorage.removeItem('github_token')
+      alert('GitHub Token 已清除')
+      setShowSettings(false)
+    }
+  }
+
   return (
     <div className="container">
       {view === 'login' && (
@@ -109,6 +127,12 @@ export default function App() {
               >
                 上传回档
               </button>
+              <button
+                onClick={() => setShowSettings(true)}
+                className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50"
+              >
+                设置
+              </button>
             </div>
             <p className="text-xs text-gray-400 mt-2">存档和回档包含网站所有数据：成员、项目、所有文件</p>
           </div>
@@ -127,6 +151,7 @@ export default function App() {
               setCurrentProject(newProjectName)
             }
           }}
+          githubToken={githubToken}
         />
       )}
 
@@ -152,6 +177,48 @@ export default function App() {
             <div className="flex gap-2 mt-4">
               <button
                 onClick={() => setShowRestore(false)}
+                className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSettings && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold mb-4">设置</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">GitHub Token</label>
+                <input
+                  type="password"
+                  value={githubToken}
+                  onChange={(e) => setGithubToken(e.target.value)}
+                  placeholder="ghp_xxx..."
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                />
+                {githubToken && (
+                  <p className="text-xs text-green-500 mt-1">Token 已设置</p>
+                )}
+              </div>
+              <p className="text-xs text-gray-400">
+                GitHub Token 用于提高 API 调用速率限制（从 60 次/小时提升到 5000 次/小时）
+                <br />
+                保存后将存储在浏览器 localStorage 中
+              </p>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={handleSaveGithubToken}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+              >
+                保存
+              </button>
+              <button
+                onClick={() => setShowSettings(false)}
                 className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50"
               >
                 取消

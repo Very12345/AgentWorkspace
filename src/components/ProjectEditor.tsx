@@ -22,6 +22,7 @@ interface ProjectEditorProps {
   currentUser: string
   onBack: () => void
   onProjectUpdated: (newProjectName?: string) => void
+  githubToken?: string
 }
 
 declare const marked: {
@@ -38,7 +39,7 @@ declare global {
   }
 }
 
-export default function ProjectEditor({ projectName, projectDescription, currentUser, onBack, onProjectUpdated }: ProjectEditorProps) {
+export default function ProjectEditor({ projectName, projectDescription, currentUser, onBack, onProjectUpdated, githubToken }: ProjectEditorProps) {
   const [projectData, setProjectData] = useState<ProjectData>({ files: [] })
   const [currentFile, setCurrentFile] = useState('')
   const [editorContent, setEditorContent] = useState('')
@@ -61,7 +62,7 @@ export default function ProjectEditor({ projectName, projectDescription, current
   const [settingsDescription, setSettingsDescription] = useState(projectDescription)
   const [showRepoSync, setShowRepoSync] = useState(false)
   const [showPushToGitHub, setShowPushToGitHub] = useState(false)
-  const [githubToken, setGithubToken] = useState('')
+  const [localGithubToken, setLocalGithubToken] = useState('')
   const [pushMessage, setPushMessage] = useState('')
   const [showEvaluation, setShowEvaluation] = useState(false)
   const [pushLoading, setPushLoading] = useState(false)
@@ -295,7 +296,8 @@ export default function ProjectEditor({ projectName, projectDescription, current
   }
 
   const handlePushToGitHub = async () => {
-    if (!githubToken || !pushMessage.trim()) {
+    const token = localGithubToken || githubToken
+    if (!token || !pushMessage.trim()) {
       alert('请填写GitHub Token和提交信息')
       return
     }
@@ -312,7 +314,7 @@ export default function ProjectEditor({ projectName, projectDescription, current
       file.githubSync.path || file.name,
       file.content,
       pushMessage.trim(),
-      githubToken,
+      token,
       file.githubSync.branch
     )
     setPushLoading(false)
@@ -456,7 +458,7 @@ export default function ProjectEditor({ projectName, projectDescription, current
               <button
                 onClick={() => {
                   setShowPushToGitHub(true)
-                  setGithubToken('')
+                  setLocalGithubToken('')
                   setPushMessage('')
                 }}
                 className="px-3 py-1.5 text-sm border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50"
@@ -923,8 +925,8 @@ export default function ProjectEditor({ projectName, projectDescription, current
                 <label className="block text-sm text-gray-600 mb-1">GitHub Token</label>
                 <input
                   type="password"
-                  value={githubToken}
-                  onChange={(e) => setGithubToken(e.target.value)}
+                  value={localGithubToken}
+                  onChange={(e) => setLocalGithubToken(e.target.value)}
                   placeholder="ghp_xxx"
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg"
                 />
