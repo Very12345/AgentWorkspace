@@ -646,15 +646,31 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 export async function getEvaluationResult(taskId: string, token?: string): Promise<string | null> {
   try {
     const url = buildUrl(`${EVALUATION_BASE}/result/${taskId}`, token);
+    console.log('Fetching evaluation result:', url);
     const resultRes = await fetch(url);
     
     if (!resultRes.ok) {
       console.warn(`Failed to get evaluation result: ${resultRes.status}`);
+      try {
+        const errorText = await resultRes.text();
+        console.warn('Error response:', errorText);
+      } catch {}
       return null;
     }
     
     const result = await resultRes.json();
-    return result.content || null;
+    console.log('Evaluation result response:', result);
+    
+    if (result.content) {
+      return result.content;
+    } else if (result.result) {
+      return result.result;
+    } else if (typeof result === 'string') {
+      return result;
+    }
+    
+    console.warn('No content found in result:', result);
+    return null;
   } catch (error) {
     console.error('Error getting evaluation result:', error);
     return null;
