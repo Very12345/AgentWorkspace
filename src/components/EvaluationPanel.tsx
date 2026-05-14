@@ -141,7 +141,9 @@ export default function EvaluationPanel({ projectName, tasks, onTasksUpdated }: 
     }
   };
 
-  const pollTaskStatus = async (taskId: string, currentTasks: EvaluationTask[]) => {
+  const pollTaskStatus = async (taskId: string, initialTasks: EvaluationTask[]) => {
+    let currentTasks = [...initialTasks];
+    
     try {
       const result = await waitForEvaluation(taskId, (status) => {
         const updated = currentTasks.map(t => 
@@ -157,6 +159,7 @@ export default function EvaluationPanel({ projectName, tasks, onTasksUpdated }: 
               }
             : t
         );
+        currentTasks = updated;
         onTasksUpdated(updated);
       }, solverToken || undefined);
       
@@ -175,6 +178,15 @@ export default function EvaluationPanel({ projectName, tasks, onTasksUpdated }: 
             startedAt: statusInfo?.started_at || undefined,
             finishedAt: statusInfo?.finished_at || undefined,
             backupData: backupData || undefined
+          } : t
+        );
+        onTasksUpdated(updated);
+      } else if (!result) {
+        const updated = currentTasks.map(t => 
+          t.taskId === taskId ? { 
+            ...t, 
+            status: 'error' as const, 
+            error: '获取测评结果失败'
           } : t
         );
         onTasksUpdated(updated);
@@ -376,13 +388,17 @@ export default function EvaluationPanel({ projectName, tasks, onTasksUpdated }: 
                       </div>
                     )}
                     
-                    {task.status === 'complete' && task.result && (
+                    {task.status === 'complete' && (
                       <div className="mt-2">
-                        <div className="text-sm font-medium text-gray-700 mb-1">测评结果:</div>
-                        <div 
-                          className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg preview-panel"
-                          dangerouslySetInnerHTML={{ __html: (window as any).marked?.parse(task.result) || task.result }}
-                        />
+                        {task.result && (
+                          <>
+                            <div className="text-sm font-medium text-gray-700 mb-1">测评结果:</div>
+                            <div 
+                              className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg preview-panel"
+                              dangerouslySetInnerHTML={{ __html: (window as any).marked?.parse(task.result) || task.result }}
+                            />
+                          </>
+                        )}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();

@@ -610,7 +610,10 @@ export async function getEvaluationResult(taskId: string, token?: string): Promi
 }
 
 export async function waitForEvaluation(taskId: string, onProgress?: (status: EvaluationStatus) => void, token?: string): Promise<string | null> {
-  while (true) {
+  const maxRetries = 60;
+  let retries = 0;
+  
+  while (retries < maxRetries) {
     const status = await getEvaluationStatus(taskId, token);
     if (!status) return null;
 
@@ -624,8 +627,17 @@ export async function waitForEvaluation(taskId: string, onProgress?: (status: Ev
       throw new Error(status.error || 'Unknown error');
     }
 
+    const validStatuses: EvaluationStatus['status'][] = ['pending', 'running', 'complete', 'error'];
+    if (!validStatuses.includes(status.status)) {
+      console.warn(`Unexpected status: ${status.status}, stopping poll`);
+      return null;
+    }
+
+    retries++;
     await new Promise((r) => setTimeout(r, 5000));
   }
+  
+  throw new Error('Evaluation timeout');
 }
 
 export interface GitHubApiError {
