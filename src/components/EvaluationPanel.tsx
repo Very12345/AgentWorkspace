@@ -60,6 +60,48 @@ export default function EvaluationPanel({ projectName, tasks, onTasksUpdated }: 
     }
   };
 
+  const handleFileLoad = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+    
+    setSubmitting(true);
+    
+    try {
+      const newTasks: EvaluationTask[] = [];
+      
+      for (const file of files) {
+        const content = await file.text();
+        const newTask: EvaluationTask = {
+          taskId: 'file-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+          problem: content,
+          status: 'pending',
+          submittedAt: Date.now(),
+          fileName: file.name
+        };
+        newTasks.push(newTask);
+      }
+      
+      const updatedTasks = [...newTasks, ...displayTasks];
+      onTasksUpdated(updatedTasks);
+      
+      for (const task of newTasks) {
+        if (task.taskId && task.status === 'pending') {
+          setTimeout(() => {
+            pollTaskStatus(task.taskId!, updatedTasks);
+          }, 100);
+        }
+      }
+      
+      alert(`成功加载 ${files.length} 个文件`);
+    } catch (error) {
+      console.error('Failed to load files:', error);
+      alert('加载文件失败');
+    } finally {
+      setSubmitting(false);
+      event.target.value = '';
+    }
+  };
+
   const pollTaskStatus = async (taskId: string, currentTasks: EvaluationTask[]) => {
     try {
       const result = await waitForEvaluation(taskId, (status) => {
@@ -163,6 +205,18 @@ export default function EvaluationPanel({ projectName, tasks, onTasksUpdated }: 
         >
           {submitting ? '提交中...' : '提交测评'}
         </button>
+        
+        <div className="mt-3">
+          <label className="block text-sm text-gray-600 mb-1">从本地文件加载测评</label>
+          <input
+            type="file"
+            accept=".md,.txt"
+            multiple
+            onChange={handleFileLoad}
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+          />
+          <p className="text-xs text-gray-400 mt-1">支持 .md 和 .txt 文件，可选择多个文件</p>
+        </div>
       </div>
 
       <div>
@@ -174,9 +228,23 @@ export default function EvaluationPanel({ projectName, tasks, onTasksUpdated }: 
             {displayTasks.map((task) => (
               <div 
                 key={task.taskId} 
-                className={`p-3 bg-white border rounded-lg ${selectedTask?.taskId === task.taskId ? 'border-blue-300' : 'border-gray-200'}`}
-                onClick={() => setSelectedTask(selectedTask?.taskId === task.taskId ? null : task)}
+                className={`p-3 bg-white border rounded-lg ${selectedTask?.taskId === task.taskId ? 'border-blue-300' : 'border-gray-200'} relative`}
               >
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (confirm('确定要删除这条测评记录吗？')) {
+                      const newTasks = displayTasks.filter(t => t.taskId !== task.taskId);
+                      onTasksUpdated(newTasks);
+                      if (selectedTask?.taskId === task.taskId) {
+                        setSelectedTask(null);
+                      }
+                    }
+                  }}
+                  className="absolute top-2 right-2 text-xs text-red-500 hover:text-red-700"
+                >
+                  删除
+                </button>
                 <div className="flex justify-between items-start">
                   <div>
                     <span className={`text-sm font-medium ${getStatusColor(task.status)}`}>

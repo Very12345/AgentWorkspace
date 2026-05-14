@@ -46,6 +46,7 @@ export interface EvaluationTask {
   startedAt?: string
   finishedAt?: string
   backupData?: string
+  fileName?: string
 }
 
 export interface ProjectData {
