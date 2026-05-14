@@ -678,10 +678,7 @@ export async function getEvaluationResult(taskId: string, token?: string): Promi
 }
 
 export async function waitForEvaluation(taskId: string, onProgress?: (status: EvaluationStatus) => void, token?: string): Promise<string | null> {
-  const maxRetries = 60;
-  let retries = 0;
-  
-  while (retries < maxRetries) {
+  while (true) {
     const status = await getEvaluationStatus(taskId, token);
     if (!status) return null;
 
@@ -701,11 +698,8 @@ export async function waitForEvaluation(taskId: string, onProgress?: (status: Ev
       return null;
     }
 
-    retries++;
     await new Promise((r) => setTimeout(r, 5000));
   }
-  
-  throw new Error('Evaluation timeout');
 }
 
 export interface GitHubApiError {
