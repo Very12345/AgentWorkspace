@@ -69,19 +69,25 @@ export default function ProjectEditor({ projectName, projectDescription, current
   const [showSyncedFiles, setShowSyncedFiles] = useState(false)
   const [syncedFilesList, setSyncedFilesList] = useState<string[]>([])
 
-  const loadDoc = useCallback(async () => {
+  const loadDoc = useCallback(async (keepCurrentFile: boolean = false) => {
     const data = await loadProjectData(projectName)
     if (data.files.length === 0) {
       data.files = [{ name: '', content: '', history: [] }]
       setCurrentFile('')
       setEditorContent('')
     } else {
-      const defaultFile = data.files.find(f => f.name === '') || data.files[0]
-      setCurrentFile(defaultFile.name)
-      setEditorContent(defaultFile.content)
+      let targetFile
+      if (keepCurrentFile && currentFile) {
+        targetFile = data.files.find(f => f.name === currentFile)
+      }
+      if (!targetFile) {
+        targetFile = data.files.find(f => f.name === '') || data.files[0]
+      }
+      setCurrentFile(targetFile.name)
+      setEditorContent(targetFile.content)
     }
     setProjectData(data)
-  }, [projectName])
+  }, [projectName, currentFile])
 
   useEffect(() => {
     loadDoc()
@@ -148,7 +154,7 @@ export default function ProjectEditor({ projectName, projectDescription, current
     if (!newFileName.trim()) return
     const success = await createProjectFile(projectName, newFileName.trim())
     if (success) {
-      await loadDoc()
+      await loadDoc(true)
       setCurrentFile(newFileName.trim())
       setEditorContent('')
       setShowNewFile(false)
@@ -160,7 +166,7 @@ export default function ProjectEditor({ projectName, projectDescription, current
     if (!confirm(`确定删除文件 "${filename || '(默认文件)'}" 吗？`)) return
     const success = await deleteProjectFile(projectName, filename)
     if (success) {
-      await loadDoc()
+      await loadDoc(true)
     }
   }
 
@@ -174,7 +180,7 @@ export default function ProjectEditor({ projectName, projectDescription, current
     if (success) {
       alert('提交成功')
       setCommitMessage('')
-      await loadDoc()
+      await loadDoc(true)
     } else {
       alert('提交失败')
     }
@@ -215,7 +221,7 @@ export default function ProjectEditor({ projectName, projectDescription, current
       hasAutoSynced.current.delete(currentFile)
       alert('同步成功')
       setShowGitHubSync(false)
-      await loadDoc()
+      await loadDoc(true)
       const newFileData = (await loadProjectData(projectName)).files.find(f => f.name === currentFile)
       if (newFileData) {
         setEditorContent(newFileData.content)
@@ -241,7 +247,7 @@ export default function ProjectEditor({ projectName, projectDescription, current
     )
     setSyncLoading(false)
     if (success) {
-      await loadDoc()
+      await loadDoc(true)
       const newFileData = (await loadProjectData(projectName)).files.find(f => f.name === currentFile)
       if (newFileData) {
         setEditorContent(newFileData.content)
@@ -259,7 +265,7 @@ export default function ProjectEditor({ projectName, projectDescription, current
       file.githubSync = undefined
       hasAutoSynced.current.delete(targetFile)
       await saveProjectData(projectName, data)
-      await loadDoc()
+      await loadDoc(true)
     }
   }
 
@@ -276,7 +282,7 @@ export default function ProjectEditor({ projectName, projectDescription, current
       }
       file.githubSync.autoSync = newAutoSync
       await saveProjectData(projectName, data)
-      await loadDoc()
+      await loadDoc(true)
     }
   }
 
@@ -302,7 +308,7 @@ export default function ProjectEditor({ projectName, projectDescription, current
       setSyncedFilesList(result.syncedFiles)
       setShowSyncedFiles(true)
       setShowRepoSync(false)
-      await loadDoc()
+      await loadDoc(true)
     } else {
       if (result.isRateLimit && result.retryAfter) {
         const minutes = Math.ceil(result.retryAfter / 60)
@@ -361,7 +367,7 @@ export default function ProjectEditor({ projectName, projectDescription, current
       if (currentFile === renameFile) {
         setCurrentFile(renameName.trim())
       }
-      await loadDoc()
+      await loadDoc(true)
     } else {
       alert('重命名失败，文件名可能已存在')
     }
