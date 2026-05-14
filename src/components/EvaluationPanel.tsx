@@ -2,6 +2,12 @@ import { useState } from 'react';
 import type { EvaluationTask } from '@/types';
 import { submitProblem, waitForEvaluation, downloadEvaluationResult } from '@/lib/api';
 
+interface PendingFile {
+  id: string;
+  file: File;
+  content: string;
+}
+
 interface EvaluationPanelProps {
   projectName: string;
   tasks: EvaluationTask[];
@@ -13,6 +19,7 @@ export default function EvaluationPanel({ projectName, tasks, onTasksUpdated }: 
   const [submitting, setSubmitting] = useState(false);
   const [selectedTask, setSelectedTask] = useState<EvaluationTask | null>(null);
   const [solverToken, setSolverToken] = useState('');
+  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   
   const displayTasks = tasks;
 
@@ -60,29 +67,62 @@ export default function EvaluationPanel({ projectName, tasks, onTasksUpdated }: 
     }
   };
 
-  const handleFileLoad = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
+    
+    try {
+      const newPendingFiles: PendingFile[] = [];
+      
+      for (const file of files) {
+        const content = await file.text();
+        newPendingFiles.push({
+          id: 'file-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+          file,
+          content
+        });
+      }
+      
+      setPendingFiles(prev => [...prev, ...newPendingFiles]);
+    } catch (error) {
+      console.error('Failed to load files:', error);
+      alert('加载文件失败');
+    } finally {
+      event.target.value = '';
+    }
+  };
+
+  const removePendingFile = (id: string) => {
+    setPendingFiles(prev => prev.filter(f => f.id !== id));
+  };
+
+  const submitPendingFiles = async () => {
+    if (pendingFiles.length === 0) {
+      alert('没有待提交的文件');
+      return;
+    }
     
     setSubmitting(true);
     
     try {
       const newTasks: EvaluationTask[] = [];
       
-      for (const file of files) {
-        const content = await file.text();
-        const newTask: EvaluationTask = {
-          taskId: 'file-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
-          problem: content,
-          status: 'pending',
+      for (const pendingFile of pendingFiles) {
+        const taskId = await submitProblem(pendingFile.content, projectName, solverToken || undefined);
+        
+        newTasks.push({
+          taskId: taskId || ('temp-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9)),
+          problem: pendingFile.content,
+          status: taskId ? 'pending' : 'error',
           submittedAt: Date.now(),
-          fileName: file.name
-        };
-        newTasks.push(newTask);
+          fileName: pendingFile.file.name,
+          error: taskId ? undefined : '提交失败'
+        });
       }
       
       const updatedTasks = [...newTasks, ...displayTasks];
       onTasksUpdated(updatedTasks);
+      setPendingFiles([]);
       
       for (const task of newTasks) {
         if (task.taskId && task.status === 'pending') {
@@ -92,13 +132,12 @@ export default function EvaluationPanel({ projectName, tasks, onTasksUpdated }: 
         }
       }
       
-      alert(`成功加载 ${files.length} 个文件`);
+      alert(`成功提交 ${newTasks.length} 个测评`);
     } catch (error) {
-      console.error('Failed to load files:', error);
-      alert('加载文件失败');
+      console.error('Failed to submit files:', error);
+      alert('提交失败');
     } finally {
       setSubmitting(false);
-      event.target.value = '';
     }
   };
 
@@ -206,16 +245,49 @@ export default function EvaluationPanel({ projectName, tasks, onTasksUpdated }: 
           {submitting ? '提交中...' : '提交测评'}
         </button>
         
-        <div className="mt-3">
-          <label className="block text-sm text-gray-600 mb-1">从本地文件加载测评</label>
+        <div className="mt-4">
+          <label className="block text-sm text-gray-600 mb-2">从本地文件加载测评</label>
           <input
             type="file"
             accept=".md,.txt"
             multiple
-            onChange={handleFileLoad}
+            onChange={handleFileSelect}
             className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
           />
           <p className="text-xs text-gray-400 mt-1">支持 .md 和 .txt 文件，可选择多个文件</p>
+          
+          {pendingFiles.length > 0 && (
+            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-blue-700">
+                  待提交文件 ({pendingFiles.length})
+                </span>
+              </div>
+              <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                {pendingFiles.map((pendingFile) => (
+                  <div key={pendingFile.id} className="flex items-center justify-between bg-white p-2 rounded border">
+                    <span className="text-sm truncate flex-1">{pendingFile.file.name}</span>
+                    <button
+                      onClick={() => removePendingFile(pendingFile.id)}
+                      className="ml-2 p-1 text-gray-400 hover:text-red-500"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={submitPendingFiles}
+                disabled={submitting}
+                className={`mt-3 w-full px-4 py-2 rounded-lg font-medium ${submitting
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-green-500 text-white hover:bg-green-600'
+                }`}
+              >
+                {submitting ? '提交中...' : '提交文件测评'}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -230,35 +302,42 @@ export default function EvaluationPanel({ projectName, tasks, onTasksUpdated }: 
                 key={task.taskId} 
                 className={`p-3 bg-white border rounded-lg ${selectedTask?.taskId === task.taskId ? 'border-blue-300' : 'border-gray-200'} relative`}
               >
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (confirm('确定要删除这条测评记录吗？')) {
-                      const newTasks = displayTasks.filter(t => t.taskId !== task.taskId);
-                      onTasksUpdated(newTasks);
-                      if (selectedTask?.taskId === task.taskId) {
-                        setSelectedTask(null);
-                      }
-                    }
-                  }}
-                  className="absolute top-2 right-2 px-2 py-1 text-xs bg-red-100 text-red-600 rounded hover:bg-red-200"
-                >
-                  删除
-                </button>
                 <div className="flex justify-between items-start">
-                  <div>
-                    <span className={`text-sm font-medium ${getStatusColor(task.status)}`}>
-                      {getStatusText(task.status)}
-                    </span>
-                    {task.phase && (
-                      <span className="text-xs text-gray-500 ml-2">
-                        {task.phase}
+                  <div className="flex-1">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className={`text-sm font-medium ${getStatusColor(task.status)}`}>
+                          {getStatusText(task.status)}
+                        </span>
+                        {task.phase && (
+                          <span className="text-xs text-gray-500 ml-2">
+                            {task.phase}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs text-gray-400">
+                        {formatTime(task.submittedAt)}
                       </span>
-                    )}
+                    </div>
                   </div>
-                  <span className="text-xs text-gray-400">
-                    {formatTime(task.submittedAt)}
-                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (confirm('确定要删除这条测评记录吗？')) {
+                        const newTasks = displayTasks.filter(t => t.taskId !== task.taskId);
+                        onTasksUpdated(newTasks);
+                        if (selectedTask?.taskId === task.taskId) {
+                          setSelectedTask(null);
+                        }
+                      }
+                    }}
+                    className="ml-2 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                    title="删除"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
                 </div>
                 
                 {task.filesDone && task.filesDone.length > 0 && (
@@ -275,53 +354,4 @@ export default function EvaluationPanel({ projectName, tasks, onTasksUpdated }: 
                     
                     {task.createdAt && (
                       <div className="text-xs text-gray-400">
-                        创建时间: {new Date(task.createdAt).toLocaleString('zh-CN')}
-                      </div>
-                    )}
-                    
-                    {task.startedAt && (
-                      <div className="text-xs text-gray-400">
-                        开始时间: {new Date(task.startedAt).toLocaleString('zh-CN')}
-                      </div>
-                    )}
-                    
-                    {task.finishedAt && (
-                      <div className="text-xs text-gray-400">
-                        完成时间: {new Date(task.finishedAt).toLocaleString('zh-CN')}
-                      </div>
-                    )}
-                    
-                    {task.status === 'error' && (
-                      <div className="text-sm text-red-600 mt-2">
-                        <strong>错误:</strong> {task.error}
-                      </div>
-                    )}
-                    
-                    {task.status === 'complete' && task.result && (
-                      <div className="mt-2">
-                        <div className="text-sm font-medium text-gray-700 mb-1">测评结果:</div>
-                        <div 
-                          className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg preview-panel"
-                          dangerouslySetInnerHTML={{ __html: (window as any).marked?.parse(task.result) || task.result }}
-                        />
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            downloadEvaluationResult(task.taskId, solverToken || undefined, task.backupData);
-                          }}
-                          className="mt-2 px-3 py-1 bg-green-500 text-white text-xs rounded-lg hover:bg-green-600"
-                        >
-                          下载完整结果 (ZIP)
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+                        创建时间: {new Date(task.createdAt
