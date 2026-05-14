@@ -15,13 +15,27 @@ interface EvaluationPanelProps {
   projectData?: ProjectData;
 }
 
+const SOLVER_TOKEN_KEY = 'solver_token';
+
 export default function EvaluationPanel({ projectName, tasks, onTasksUpdated, projectData }: EvaluationPanelProps) {
   const [problemText, setProblemText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [selectedTask, setSelectedTask] = useState<EvaluationTask | null>(null);
-  const [solverToken, setSolverToken] = useState('');
+  const [solverToken, setSolverToken] = useState(() => {
+    const saved = localStorage.getItem(SOLVER_TOKEN_KEY);
+    return saved || '';
+  });
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [useCurrentProject, setUseCurrentProject] = useState(false);
+  
+  const handleTokenChange = (value: string) => {
+    setSolverToken(value);
+    if (value) {
+      localStorage.setItem(SOLVER_TOKEN_KEY, value);
+    } else {
+      localStorage.removeItem(SOLVER_TOKEN_KEY);
+    }
+  };
   
   const displayTasks = tasks;
 
@@ -397,8 +411,8 @@ export default function EvaluationPanel({ projectName, tasks, onTasksUpdated, pr
           <input 
             type="password" 
             value={solverToken} 
-            onChange={(e) => setSolverToken(e.target.value)} 
-            placeholder="输入认证密码" 
+            onChange={(e) => handleTokenChange(e.target.value)} 
+            placeholder="输入认证密码（会自动保存）" 
             className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
           />
         </div>
