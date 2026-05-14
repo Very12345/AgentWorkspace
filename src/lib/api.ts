@@ -628,6 +628,13 @@ export async function waitForEvaluation(taskId: string, onProgress?: (status: Ev
   }
 }
 
+export interface GitHubApiError {
+  success: boolean;
+  error?: string;
+  isRateLimit?: boolean;
+  retryAfter?: number;
+}
+
 export async function fetchGitHubRepoFiles(repo: string, branch?: string, path: string = '', token?: string): Promise<{ name: string; path: string; type: 'file' | 'dir'; content?: string }[] | null> {
   try {
     const headers: HeadersInit = {
@@ -645,7 +652,12 @@ export async function fetchGitHubRepoFiles(repo: string, branch?: string, path: 
 
     const resp = await fetch(url, { headers });
     if (!resp.ok) {
-      console.error('GitHub API error:', resp.status, resp.statusText);
+      const retryAfter = resp.headers.get('Retry-After');
+      if (resp.status === 403 && retryAfter) {
+        console.error(`GitHub Rate Limit exceeded. Retry after ${retryAfter} seconds.`);
+      } else {
+        console.error('GitHub API error:', resp.status, resp.statusText);
+      }
       return null;
     }
     
@@ -686,7 +698,7 @@ export async function fetchGitHubRepoFiles(repo: string, branch?: string, path: 
   }
 }
 
-export async function syncGitHubRepoToProject(repo: string, projectName: string, branch?: string, token?: string): Promise<{ success: boolean; syncedFiles: string[] }> {
+export async function syncGitHubRepoToProject(repo: string, projectName: string, branch?: string, token?: string): Promise<{ success: boolean; syncedFiles: string[]; error?: string; isRateLimit?: boolean; retryAfter?: number }> {
   try {
     const files = await fetchGitHubRepoFiles(repo, branch, '', token);
     if (!files) return { success: false, syncedFiles: [] };
@@ -719,13 +731,20 @@ export async function syncGitHubRepoToProject(repo: string, projectName: string,
       }
     }
 
-    data.githubRepoSync = { repo, branch, autoSync: true };
+    data.githubRepoSync = { repo, branch, autoSync: true, lastSyncTime: Date.now() };
     const success = await saveProjectData(projectName, data);
     
     return { success, syncedFiles };
-  } catch {
-    return { success: false, syncedFiles: [] };
+  } catch (error) {
+    console.error('Sync error:', error);
+    return { success: false, syncedFiles: [], error: error instanceof Error ? error.message : 'Unknown error' };
   }
+}
+
+export function shouldAutoSync(lastSyncTime?: number): boolean {
+  if (!lastSyncTime) return true;
+  const oneHour = 60 * 60 * 1000;
+  return Date.now() - lastSyncTime > oneHour;
 }
 
 export async function pushToGitHub(repo: string, filePath: string, content: string, message: string, token: string, branch?: string): Promise<boolean> {

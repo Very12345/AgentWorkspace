@@ -11,7 +11,8 @@ import {
   syncFromGitHub,
   generateDiff,
   syncGitHubRepoToProject,
-  pushToGitHub
+  pushToGitHub,
+  shouldAutoSync
 } from '@/lib/api'
 import EvaluationPanel from './EvaluationPanel'
 
@@ -260,9 +261,17 @@ export default function ProjectEditor({ projectName, projectDescription, current
     }
   }
 
-  const handleRepoSync = async () => {
+  const handleRepoSync = async (manual: boolean = false) => {
     if (!githubRepo) {
       alert('请填写仓库地址')
+      return
+    }
+    
+    const lastSyncTime = projectData.githubRepoSync?.lastSyncTime
+    if (!manual && lastSyncTime && !shouldAutoSync(lastSyncTime)) {
+      const hours = Math.floor((Date.now() - lastSyncTime) / (60 * 60 * 1000))
+      const minutes = Math.floor(((Date.now() - lastSyncTime) % (60 * 60 * 1000)) / (60 * 1000))
+      alert(`距离上次同步不到1小时（${hours}小时${minutes}分钟前），请稍后再试或手动同步`)
       return
     }
     
@@ -276,7 +285,12 @@ export default function ProjectEditor({ projectName, projectDescription, current
       setShowRepoSync(false)
       await loadDoc()
     } else {
-      alert('同步失败，请检查配置')
+      if (result.isRateLimit && result.retryAfter) {
+        const minutes = Math.ceil(result.retryAfter / 60)
+        alert(`GitHub 速率限制已达上限，请等待约 ${minutes} 分钟后再试，或使用 GitHub Token 认证`)
+      } else {
+        alert(`同步失败${result.error ? `: ${result.error}` : '，请检查配置'}`)
+      }
     }
   }
 
@@ -861,19 +875,33 @@ export default function ProjectEditor({ projectName, projectDescription, current
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg"
                 />
               </div>
+              {projectData.githubRepoSync?.lastSyncTime && (
+                <div className="text-xs text-gray-500">
+                  上次同步: {new Date(projectData.githubRepoSync.lastSyncTime).toLocaleString('zh-CN')}
+                </div>
+              )}
               <p className="text-xs text-gray-400">
                 同步整个仓库的所有文件（仅公开仓库）
                 <br />
                 Markdown文件可编辑，其他文件为只读
+                <br />
+                自动同步间隔：1小时
               </p>
             </div>
             <div className="flex gap-2 mt-4">
               <button
-                onClick={handleRepoSync}
+                onClick={() => handleRepoSync(false)}
                 disabled={syncLoading}
                 className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
               >
                 {syncLoading ? '同步中...' : '同步仓库'}
+              </button>
+              <button
+                onClick={() => handleRepoSync(true)}
+                disabled={syncLoading}
+                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50"
+              >
+                {syncLoading ? '同步中...' : '强制同步'}
               </button>
               <button
                 onClick={() => setShowRepoSync(false)}

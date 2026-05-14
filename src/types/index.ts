@@ -54,6 +54,7 @@ export interface ProjectData {
     repo: string
     branch?: string
     autoSync: boolean
+    lastSyncTime?: number
   }
   evaluationTasks?: EvaluationTask[]
   githubCredentials?: {
