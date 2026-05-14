@@ -465,6 +465,51 @@ export async function submitProblem(problem: string, name: string, token?: strin
   }
 }
 
+export interface SubmitBundleResponse {
+  task_ids: string[];
+  count: number;
+}
+
+export async function submitBundle(projectZip: Blob, problems: string[], problemText?: string, token?: string): Promise<SubmitBundleResponse | null> {
+  try {
+    const url = buildUrl(`${EVALUATION_BASE}/submit-bundle`, token);
+    const formData = new FormData();
+    
+    formData.append('project', projectZip, 'project.zip');
+    
+    problems.forEach((problem, index) => {
+      const blob = new Blob([problem], { type: 'text/markdown' });
+      formData.append('problems', blob, `problem${index + 1}.md`);
+    });
+    
+    if (problemText) {
+      formData.append('problem', problemText);
+    }
+    
+    const res = await fetch(url, {
+      method: "POST",
+      body: formData,
+    });
+    
+    if (!res.ok) {
+      console.error('Submit bundle failed:', res.status, res.statusText);
+      try {
+        const errorText = await res.text();
+        console.error('Error response:', errorText);
+      } catch {}
+      return null;
+    }
+    
+    const data = await res.json();
+    console.log('Submit bundle response:', data);
+    
+    return data as SubmitBundleResponse;
+  } catch (error) {
+    console.error('Submit bundle error:', error);
+    return null;
+  }
+}
+
 export interface EvaluationStatus {
   task_id?: string;
   name?: string;
@@ -602,9 +647,16 @@ export async function getEvaluationResult(taskId: string, token?: string): Promi
   try {
     const url = buildUrl(`${EVALUATION_BASE}/result/${taskId}`, token);
     const resultRes = await fetch(url);
+    
+    if (!resultRes.ok) {
+      console.warn(`Failed to get evaluation result: ${resultRes.status}`);
+      return null;
+    }
+    
     const result = await resultRes.json();
     return result.content || null;
-  } catch {
+  } catch (error) {
+    console.error('Error getting evaluation result:', error);
     return null;
   }
 }

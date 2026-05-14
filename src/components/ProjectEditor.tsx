@@ -982,6 +982,7 @@ export default function ProjectEditor({ projectName, projectDescription, current
               projectName={projectName}
               tasks={projectData.evaluationTasks || []}
               onTasksUpdated={handleTasksUpdated}
+              projectData={projectData}
             />
           </div>
         </div>
