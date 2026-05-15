@@ -1,4 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import hljs from 'highlight.js/lib/core'
+import python from 'highlight.js/lib/languages/python'
+import javascript from 'highlight.js/lib/languages/javascript'
+import json from 'highlight.js/lib/languages/json'
+import 'highlight.js/styles/github-dark.css'
+
+hljs.registerLanguage('python', python)
+hljs.registerLanguage('javascript', javascript)
+hljs.registerLanguage('json', json)
 import type { ProjectData, ProjectFile, Commit, EvaluationTask } from '@/types'
 import {
   loadProjectData,
@@ -147,6 +156,34 @@ export default function ProjectEditor({ projectName, projectDescription, current
       renderPreview()
     }
   }, [isEditing, editorContent, renderPreview])
+
+  const highlightCode = (code: string, filename: string): string => {
+    const ext = filename.split('.').pop()?.toLowerCase()
+    let language = 'plaintext'
+    
+    if (ext === 'py') {
+      language = 'python'
+    } else if (ext === 'js' || ext === 'jsx' || ext === 'ts' || ext === 'tsx') {
+      language = 'javascript'
+    } else if (ext === 'json') {
+      language = 'json'
+    }
+    
+    try {
+      if (language === 'plaintext') {
+        return escapeHtml(code)
+      }
+      return hljs.highlight(code, { language }).value
+    } catch {
+      return escapeHtml(code)
+    }
+  }
+
+  const escapeHtml = (text: string): string => {
+    const div = document.createElement('div')
+    div.textContent = text
+    return div.innerHTML
+  }
 
   const handleSelectFile = (filename: string) => {
     const file = projectData.files.find(f => f.name === filename)
@@ -763,9 +800,7 @@ export default function ProjectEditor({ projectName, projectDescription, current
         <div className="preview-panel mb-4">
           <label className="font-semibold block mb-2">文档内容</label>
           <div className="bg-gray-900 rounded-xl p-4 min-h-[400px] overflow-y-auto">
-            <pre className="font-mono text-sm text-gray-100 whitespace-pre-wrap">
-              {editorContent || ''}
-            </pre>
+            <pre className="font-mono text-sm"><code dangerouslySetInnerHTML={{ __html: highlightCode(editorContent || '', currentFile) }} /></pre>
           </div>
         </div>
       )}
