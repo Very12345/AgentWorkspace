@@ -238,7 +238,7 @@ export default function EvaluationPanel({ projectName, tasks, onTasksUpdated, pr
           
           for (const task of newTasks) {
             setTimeout(() => {
-              pollTaskStatus(task.taskId, updatedTasks);
+              pollTaskStatus(task.taskId);
             }, 500);
           }
           
@@ -266,7 +266,7 @@ export default function EvaluationPanel({ projectName, tasks, onTasksUpdated, pr
             
             if (taskId) {
               setTimeout(() => {
-                pollTaskStatus(taskId, newTasks);
+                pollTaskStatus(taskId);
               }, 500);
             }
           }
@@ -288,7 +288,7 @@ export default function EvaluationPanel({ projectName, tasks, onTasksUpdated, pr
           setProblemText('');
         
           if (taskId) {
-            pollTaskStatus(taskId, newTasks);
+            pollTaskStatus(taskId);
           }
         }
       }
@@ -340,12 +340,10 @@ export default function EvaluationPanel({ projectName, tasks, onTasksUpdated, pr
     setPendingFiles(prev => prev.filter(f => f.id !== id));
   };
 
-  const pollTaskStatus = async (taskId: string, initialTasks: EvaluationTask[]) => {
-    let currentTasks = [...initialTasks];
-    
+  const pollTaskStatus = async (taskId: string) => {
     try {
       const result = await waitForEvaluation(taskId, (status) => {
-        const updated = currentTasks.map(t => 
+        onTasksUpdated(tasks.map(t => 
           t.taskId === taskId 
             ? { 
                 ...t, 
@@ -357,9 +355,7 @@ export default function EvaluationPanel({ projectName, tasks, onTasksUpdated, pr
                 finishedAt: status.finished_at || undefined
               }
             : t
-        );
-        currentTasks = updated;
-        onTasksUpdated(updated);
+        ));
       }, solverToken || undefined);
       
       if (result) {
@@ -368,7 +364,7 @@ export default function EvaluationPanel({ projectName, tasks, onTasksUpdated, pr
         
         const backupData = await fetchAndSaveEvaluationBackup(taskId, solverToken || undefined);
         
-        const updated = currentTasks.map(t => 
+        onTasksUpdated(tasks.map(t => 
           t.taskId === taskId ? { 
             ...t, 
             status: 'complete' as const, 
@@ -378,24 +374,21 @@ export default function EvaluationPanel({ projectName, tasks, onTasksUpdated, pr
             finishedAt: statusInfo?.finished_at || undefined,
             backupData: backupData || undefined
           } : t
-        );
-        onTasksUpdated(updated);
+        ));
       } else if (!result) {
-        const updated = currentTasks.map(t => 
+        onTasksUpdated(tasks.map(t => 
           t.taskId === taskId ? { 
             ...t, 
             status: 'error' as const, 
             error: '获取测评结果失败'
           } : t
-        );
-        onTasksUpdated(updated);
+        ));
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '未知错误';
-      const updated = currentTasks.map(t => 
+      onTasksUpdated(tasks.map(t => 
         t.taskId === taskId ? { ...t, status: 'error' as const, error: errorMessage } : t
-      );
-      onTasksUpdated(updated);
+      ));
     }
   };
 
