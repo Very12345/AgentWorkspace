@@ -118,7 +118,7 @@ export default function ProjectEditor({ projectName, projectDescription, current
       const file = projectData.files.find(f => f.name === currentFile)
       if (file?.githubSync?.autoSync && !hasAutoSynced.current.has(currentFile)) {
         hasAutoSynced.current.add(currentFile)
-        handlePullFromGitHub(true)
+        handlePullFromGitHub()
       }
     }
   }, [currentFile, projectData])
