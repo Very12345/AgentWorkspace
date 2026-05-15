@@ -753,11 +753,11 @@ export default function ProjectEditor({ projectName, projectDescription, current
       ) : (
         <div className="preview-panel mb-4">
           <label className="font-semibold block mb-2">文档内容</label>
-          <div
-            id="previewContent"
-            className="bg-gray-50 rounded-xl p-4 min-h-[400px] overflow-y-auto prose max-w-none"
-            dangerouslySetInnerHTML={{ __html: marked.parse(editorContent || '') }}
-          />
+          <div className="bg-gray-900 rounded-xl p-4 min-h-[400px] overflow-y-auto">
+            <pre className="font-mono text-sm text-gray-100 whitespace-pre-wrap">
+              {editorContent || ''}
+            </pre>
+          </div>
         </div>
       )}
 
