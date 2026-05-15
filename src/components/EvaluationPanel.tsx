@@ -6,6 +6,7 @@ interface PendingFile {
   id: string;
   file: File;
   content: string;
+  name: string;
 }
 
 interface EvaluationPanelProps {
@@ -248,27 +249,47 @@ export default function EvaluationPanel({ projectName, tasks, onTasksUpdated, pr
           alert('提交失败');
         }
       } else {
-        if (!problemText.trim()) {
-          alert('请输入题目内容');
-          return;
-        }
+        if (pendingFiles.length > 0) {
+          for (const pendingFile of pendingFiles) {
+            const taskId = await submitProblem(pendingFile.content, projectName, solverToken || undefined);
+            
+            const newTask: EvaluationTask = {
+              taskId: taskId || ('temp-' + Date.now()),
+              problem: pendingFile.name + ': ' + pendingFile.content.substring(0, 50) + (pendingFile.content.length > 50 ? '...' : ''),
+              status: taskId ? 'pending' : 'error',
+              submittedAt: Date.now(),
+              error: taskId ? undefined : '提交失败'
+            };
+            
+            const newTasks = [newTask, ...displayTasks];
+            onTasksUpdated(newTasks);
+            
+            if (taskId) {
+              setTimeout(() => {
+                pollTaskStatus(taskId, newTasks);
+              }, 500);
+            }
+          }
+          setPendingFiles([]);
+          setProblemText('');
+        } else {
+          const taskId = await submitProblem(problemText, projectName, solverToken || undefined);
         
-        const taskId = await submitProblem(problemText, projectName, solverToken || undefined);
+          const newTask: EvaluationTask = {
+            taskId: taskId || ('temp-' + Date.now()),
+            problem: problemText,
+            status: taskId ? 'pending' : 'error',
+            submittedAt: Date.now(),
+            error: taskId ? undefined : '提交失败'
+          };
         
-        const newTask: EvaluationTask = {
-          taskId: taskId || ('temp-' + Date.now()),
-          problem: problemText,
-          status: taskId ? 'pending' : 'error',
-          submittedAt: Date.now(),
-          error: taskId ? undefined : '提交失败'
-        };
+          const newTasks = [newTask, ...displayTasks];
+          onTasksUpdated(newTasks);
+          setProblemText('');
         
-        const newTasks = [newTask, ...displayTasks];
-        onTasksUpdated(newTasks);
-        setProblemText('');
-        
-        if (taskId) {
-          pollTaskStatus(taskId, newTasks);
+          if (taskId) {
+            pollTaskStatus(taskId, newTasks);
+          }
         }
       }
     } catch (error) {
@@ -301,7 +322,8 @@ export default function EvaluationPanel({ projectName, tasks, onTasksUpdated, pr
         newPendingFiles.push({
           id: 'file-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
           file,
-          content
+          content,
+          name: file.name
         });
       }
       
