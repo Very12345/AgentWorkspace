@@ -3,7 +3,7 @@ import hljs from 'highlight.js/lib/core'
 import python from 'highlight.js/lib/languages/python'
 import javascript from 'highlight.js/lib/languages/javascript'
 import json from 'highlight.js/lib/languages/json'
-import 'highlight.js/styles/github-dark.css'
+import 'highlight.js/styles/atom-one-light.css'
 
 hljs.registerLanguage('python', python)
 hljs.registerLanguage('javascript', javascript)
@@ -117,7 +117,7 @@ export default function ProjectEditor({ projectName, projectDescription, current
       const file = projectData.files.find(f => f.name === currentFile)
       if (file?.githubSync?.autoSync && !hasAutoSynced.current.has(currentFile)) {
         hasAutoSynced.current.add(currentFile)
-        handlePullFromGitHub()
+        handlePullFromGitHub(true)
       }
     }
   }, [currentFile, projectData])
@@ -177,6 +177,11 @@ export default function ProjectEditor({ projectName, projectDescription, current
     } catch {
       return escapeHtml(code)
     }
+  }
+
+  const isCodeFile = (filename: string): boolean => {
+    const ext = filename.split('.').pop()?.toLowerCase()
+    return ext === 'py' || ext === 'js' || ext === 'jsx' || ext === 'ts' || ext === 'tsx' || ext === 'json'
   }
 
   const escapeHtml = (text: string): string => {
@@ -277,9 +282,13 @@ export default function ProjectEditor({ projectName, projectDescription, current
     }
   }
 
-  const handlePullFromGitHub = async () => {
+  const handlePullFromGitHub = async (force: boolean = false) => {
     const syncConfig = currentFileData?.githubSync
     if (!syncConfig) return
+    
+    if (!force && syncConfig.lastSyncTime && !shouldAutoSync(syncConfig.lastSyncTime)) {
+      return
+    }
     
     setSyncLoading(true)
     const success = await syncFromGitHub(
@@ -293,6 +302,12 @@ export default function ProjectEditor({ projectName, projectDescription, current
     )
     setSyncLoading(false)
     if (success) {
+      const data = await loadProjectData(projectName)
+      const file = data.files.find(f => f.name === currentFile)
+      if (file?.githubSync) {
+        file.githubSync.lastSyncTime = Date.now()
+        await saveProjectData(projectName, data)
+      }
       await loadDoc(true)
       const newFileData = (await loadProjectData(projectName)).files.find(f => f.name === currentFile)
       if (newFileData) {
@@ -363,6 +378,21 @@ export default function ProjectEditor({ projectName, projectDescription, current
         alert(`同步失败${result.error ? `: ${result.error}` : '，请检查配置'}`)
       }
     }
+  }
+
+  const handleRemoveRepoSync = async () => {
+    const data = await loadProjectData(projectName)
+    data.githubRepoSync = undefined
+    data.files = data.files.map(file => {
+      file.githubSync = undefined
+      file.isReadOnly = undefined
+      return file
+    })
+    await saveProjectData(projectName, data)
+    setGithubRepo('')
+    setGithubBranch('')
+    setShowRepoSync(false)
+    await loadDoc(true)
   }
 
   const handlePushToGitHub = async () => {
@@ -539,7 +569,7 @@ export default function ProjectEditor({ projectName, projectDescription, current
             {currentFileData?.githubSync ? (
               <>
                 <button
-                  onClick={handlePullFromGitHub}
+                  onClick={() => handlePullFromGitHub(true)}
                   disabled={syncLoading}
                   className="px-3 py-1.5 text-sm border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-50"
                 >
@@ -608,7 +638,14 @@ export default function ProjectEditor({ projectName, projectDescription, current
       <div className="mb-4">
         <h3 className="text-sm text-gray-600 mb-2">文件列表</h3>
         <div className="border border-gray-200 rounded-lg overflow-hidden">
-          {projectData.files.map((file) => (
+          {[...projectData.files]
+            .sort((a, b) => {
+              if (a.isReadOnly !== b.isReadOnly) {
+                return a.isReadOnly ? 1 : -1
+              }
+              return 0
+            })
+            .map((file) => (
             <div key={file.name} className="flex items-center justify-between px-4 py-2 border-b border-gray-100 last:border-b-0 hover:bg-gray-50">
               <div className="flex items-center gap-2">
                 {renameFile === file.name ? (
@@ -799,9 +836,17 @@ export default function ProjectEditor({ projectName, projectDescription, current
       ) : (
         <div className="preview-panel mb-4">
           <label className="font-semibold block mb-2">文档内容</label>
-          <div className="bg-gray-900 rounded-xl p-4 min-h-[400px] overflow-y-auto">
-            <pre className="font-mono text-sm"><code dangerouslySetInnerHTML={{ __html: highlightCode(editorContent || '', currentFile) }} /></pre>
-          </div>
+          {isCodeFile(currentFile) ? (
+            <div className="bg-gray-100 rounded-xl p-4 min-h-[400px] overflow-y-auto">
+              <pre className="font-mono text-sm"><code dangerouslySetInnerHTML={{ __html: highlightCode(editorContent || '', currentFile) }} /></pre>
+            </div>
+          ) : (
+            <div
+              id="previewContent"
+              className="bg-gray-50 rounded-xl p-4 min-h-[400px] overflow-y-auto prose max-w-none"
+              dangerouslySetInnerHTML={{ __html: marked.parse(editorContent || '') }}
+            />
+          )}
         </div>
       )}
 
@@ -962,6 +1007,15 @@ export default function ProjectEditor({ projectName, projectDescription, current
               >
                 {syncLoading ? '同步中...' : '强制同步'}
               </button>
+              {projectData.githubRepoSync && (
+                <button
+                  onClick={handleRemoveRepoSync}
+                  disabled={syncLoading}
+                  className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50"
+                >
+                  取消同步
+                </button>
+              )}
               <button
                 onClick={() => setShowRepoSync(false)}
                 className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50"

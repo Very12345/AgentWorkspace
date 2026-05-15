@@ -23,6 +23,7 @@ export interface GithubSyncConfig {
   path?: string
   branch?: string
   autoSync: boolean
+  lastSyncTime?: number
 }
 
 export interface ProjectFile {
