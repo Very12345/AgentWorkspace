@@ -39,7 +39,7 @@ export interface EvaluationTask {
   problem: string
   status: 'pending' | 'running' | 'complete' | 'error'
   phase?: string
-  filesDone?: string[]
+  filesDone?: (string | { name: string; file?: string })[]
   error?: string
   result?: string
   submittedAt: number

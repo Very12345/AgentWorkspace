@@ -3,10 +3,11 @@ import Login from '@/components/Login'
 import MemberTable from '@/components/MemberTable'
 import ProjectList from '@/components/ProjectList'
 import ProjectEditor from '@/components/ProjectEditor'
+import EvaluationPage from '@/components/EvaluationPage'
 import { getCookie, setCookie, importAllData, exportAllData, loadProjects } from '@/lib/api'
-import type { Project } from '@/types'
+import type { Project, EvaluationTask } from '@/types'
 
-type View = 'login' | 'main' | 'project'
+type View = 'login' | 'main' | 'project' | 'evaluation'
 
 export default function App() {
   const [view, setView] = useState<View>('login')
@@ -17,6 +18,7 @@ export default function App() {
   const [projects, setProjects] = useState<Project[]>([])
   const [showSettings, setShowSettings] = useState(false)
   const [githubToken, setGithubToken] = useState('')
+  const [evaluationTasks, setEvaluationTasks] = useState<EvaluationTask[]>([])
 
   const fetchProjects = async () => {
     const data = await loadProjects()
@@ -133,6 +135,12 @@ export default function App() {
               >
                 设置
               </button>
+              <button
+                onClick={() => setView('evaluation')}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+              >
+                测评管理
+              </button>
             </div>
             <p className="text-xs text-gray-400 mt-2">存档和回档包含网站所有数据：成员、项目、所有文件</p>
           </div>
@@ -153,6 +161,26 @@ export default function App() {
           }}
           githubToken={githubToken}
         />
+      )}
+
+      {view === 'evaluation' && currentUser && (
+        <div className="min-h-screen bg-gray-100">
+          <div className="max-w-7xl mx-auto">
+            <div className="p-4 bg-white shadow-sm sticky top-0 z-10">
+              <button
+                onClick={() => setView('main')}
+                className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50"
+              >
+                ← 返回首页
+              </button>
+            </div>
+            <EvaluationPage
+              projectName={currentProject}
+              tasks={evaluationTasks}
+              onTasksUpdated={setEvaluationTasks}
+            />
+          </div>
+        </div>
       )}
 
 

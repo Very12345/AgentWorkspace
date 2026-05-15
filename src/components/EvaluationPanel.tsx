@@ -567,7 +567,7 @@ export default function EvaluationPanel({ projectName, tasks, onTasksUpdated, pr
                 
                 {task.filesDone && task.filesDone.length > 0 && (
                   <div className="text-xs text-gray-500 mt-1">
-                    已完成: {task.filesDone.join(', ')}
+                    已完成: {task.filesDone.map(item => typeof item === 'object' ? item.name || item.file || JSON.stringify(item) : item).join(', ')}
                   </div>
                 )}
                 
