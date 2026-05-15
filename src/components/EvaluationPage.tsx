@@ -6,8 +6,8 @@ import json from 'highlight.js/lib/languages/json'
 import katex from 'katex'
 import 'highlight.js/styles/atom-one-light.css'
 import 'katex/dist/katex.min.css'
-import type { ProjectData, EvaluationTask } from '@/types'
-import { submitProblem, submitBundle, waitForEvaluation, getEvaluationStatus, fetchAndSaveEvaluationBackup, loadProjectData } from '@/lib/api'
+import type { ProjectData, EvaluationTask, Project } from '@/types'
+import { submitProblem, submitBundle, waitForEvaluation, getEvaluationStatus, fetchAndSaveEvaluationBackup, loadProjectData, loadProjects } from '@/lib/api'
 
 hljs.registerLanguage('python', python)
 hljs.registerLanguage('javascript', javascript)
@@ -43,16 +43,26 @@ export default function EvaluationPage({ projectName, tasks, onTasksUpdated }: E
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([])
   const [useCurrentProject, setUseCurrentProject] = useState(false)
   const [projectData, setProjectData] = useState<ProjectData | null>(null)
+  const [selectedProject, setSelectedProject] = useState(projectName)
+  const [projects, setProjects] = useState<Project[]>([])
+
+  useEffect(() => {
+    const loadProjectsList = async () => {
+      const data = await loadProjects()
+      setProjects(data)
+    }
+    loadProjectsList()
+  }, [])
 
   useEffect(() => {
     const loadData = async () => {
-      if (useCurrentProject && projectName) {
-        const data = await loadProjectData(projectName)
+      if (useCurrentProject && selectedProject) {
+        const data = await loadProjectData(selectedProject)
         setProjectData(data)
       }
     }
     loadData()
-  }, [useCurrentProject, projectName])
+  }, [useCurrentProject, selectedProject])
 
   const displayTasks = tasks
 
@@ -480,6 +490,23 @@ export default function EvaluationPage({ projectName, tasks, onTasksUpdated }: E
                 </span>
               )}
             </div>
+
+            {useCurrentProject && (
+              <div className="mb-4">
+                <label className="block text-sm text-gray-600 mb-1">选择项目</label>
+                <select
+                  value={selectedProject}
+                  onChange={(e) => setSelectedProject(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                >
+                  {projects.map((project) => (
+                    <option key={project.name} value={project.name}>
+                      {project.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div className="mb-4">
               <label className="block text-sm text-gray-600 mb-2">提交题目</label>
