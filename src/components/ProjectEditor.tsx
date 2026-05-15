@@ -42,6 +42,7 @@ declare global {
 export default function ProjectEditor({ projectName, projectDescription, currentUser, onBack, onProjectUpdated, githubToken }: ProjectEditorProps) {
   const [projectData, setProjectData] = useState<ProjectData>({ files: [] })
   const [currentFile, setCurrentFile] = useState('')
+  const currentFileRef = useRef('')
   const [editorContent, setEditorContent] = useState('')
   const [commitMessage, setCommitMessage] = useState('')
   const [showHistory, setShowHistory] = useState(false)
@@ -74,20 +75,22 @@ export default function ProjectEditor({ projectName, projectDescription, current
     if (data.files.length === 0) {
       data.files = [{ name: '', content: '', history: [] }]
       setCurrentFile('')
+      currentFileRef.current = ''
       setEditorContent('')
     } else {
       let targetFile
-      if (keepCurrentFile && currentFile) {
-        targetFile = data.files.find(f => f.name === currentFile)
+      if (keepCurrentFile && currentFileRef.current) {
+        targetFile = data.files.find(f => f.name === currentFileRef.current)
       }
       if (!targetFile) {
         targetFile = data.files.find(f => f.name === '') || data.files[0]
       }
       setCurrentFile(targetFile.name)
+      currentFileRef.current = targetFile.name
       setEditorContent(targetFile.content)
     }
     setProjectData(data)
-  }, [projectName, currentFile])
+  }, [projectName])
 
   const isInitialized = useRef(false)
   
@@ -149,6 +152,7 @@ export default function ProjectEditor({ projectName, projectDescription, current
     const file = projectData.files.find(f => f.name === filename)
     if (file) {
       setCurrentFile(filename)
+      currentFileRef.current = filename
       setEditorContent(file.content)
       setShowPreview(false)
       setSelectedCommit(null)
