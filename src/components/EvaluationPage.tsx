@@ -45,6 +45,11 @@ export default function EvaluationPage({ projectName, tasks, onTasksUpdated }: E
   const [projectData, setProjectData] = useState<ProjectData | null>(null)
   const [selectedProject, setSelectedProject] = useState(projectName)
   const [projects, setProjects] = useState<Project[]>([])
+  const [localTasks, setLocalTasks] = useState<EvaluationTask[]>(tasks)
+
+  useEffect(() => {
+    setLocalTasks(tasks)
+  }, [tasks])
 
   useEffect(() => {
     const loadProjectsList = async () => {
@@ -60,7 +65,7 @@ export default function EvaluationPage({ projectName, tasks, onTasksUpdated }: E
       }
       
       allTasks.sort((a, b) => b.submittedAt - a.submittedAt)
-      onTasksUpdated(allTasks)
+      updateTasks(allTasks)
     }
     loadProjectsList()
   }, [])
@@ -75,7 +80,12 @@ export default function EvaluationPage({ projectName, tasks, onTasksUpdated }: E
     loadData()
   }, [useCurrentProject, selectedProject])
 
-  const displayTasks = tasks
+  const displayTasks = localTasks
+
+  const updateTasks = (newTasks: EvaluationTask[]) => {
+    setLocalTasks(newTasks)
+    onTasksUpdated(newTasks)
+  }
 
   const handleTokenChange = (value: string) => {
     setSolverToken(value)
@@ -279,7 +289,7 @@ export default function EvaluationPage({ projectName, tasks, onTasksUpdated }: E
           }))
 
           const updatedTasks = [...newTasks, ...displayTasks]
-          onTasksUpdated(updatedTasks)
+          updateTasks(updatedTasks)
 
           for (const task of newTasks) {
             setTimeout(() => {
@@ -307,7 +317,7 @@ export default function EvaluationPage({ projectName, tasks, onTasksUpdated }: E
             }
 
             const newTasks = [newTask, ...displayTasks]
-            onTasksUpdated(newTasks)
+            updateTasks(newTasks)
 
             if (taskId) {
               setTimeout(() => {
@@ -329,7 +339,7 @@ export default function EvaluationPage({ projectName, tasks, onTasksUpdated }: E
           }
 
           const newTasks = [newTask, ...displayTasks]
-          onTasksUpdated(newTasks)
+          updateTasks(newTasks)
           setProblemText('')
 
           if (taskId) {
@@ -348,7 +358,7 @@ export default function EvaluationPage({ projectName, tasks, onTasksUpdated }: E
       }
 
       const newTasks = [newTask, ...displayTasks]
-      onTasksUpdated(newTasks)
+      updateTasks(newTasks)
       setProblemText('')
     } finally {
       setSubmitting(false)
@@ -383,7 +393,7 @@ export default function EvaluationPage({ projectName, tasks, onTasksUpdated }: E
   const pollTaskStatus = async (taskId: string) => {
     try {
       const result = await waitForEvaluation(taskId, (status) => {
-        onTasksUpdated(tasks.map(t =>
+        updateTasks(localTasks.map(t =>
           t.taskId === taskId
             ? {
               ...t,
@@ -402,7 +412,7 @@ export default function EvaluationPage({ projectName, tasks, onTasksUpdated }: E
         const statusInfo = await getEvaluationStatus(taskId, solverToken || undefined)
         const backupData = await fetchAndSaveEvaluationBackup(taskId, solverToken || undefined)
 
-        onTasksUpdated(tasks.map(t =>
+        updateTasks(localTasks.map(t =>
           t.taskId === taskId ? {
             ...t,
             status: 'complete' as const,
@@ -414,7 +424,7 @@ export default function EvaluationPage({ projectName, tasks, onTasksUpdated }: E
           } : t
         ))
       } else if (!result) {
-        onTasksUpdated(tasks.map(t =>
+        updateTasks(localTasks.map(t =>
           t.taskId === taskId ? {
             ...t,
             status: 'error' as const,
@@ -424,7 +434,7 @@ export default function EvaluationPage({ projectName, tasks, onTasksUpdated }: E
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '未知错误'
-      onTasksUpdated(tasks.map(t =>
+      updateTasks(localTasks.map(t =>
         t.taskId === taskId ? { ...t, status: 'error' as const, error: errorMessage } : t
       ))
     }
@@ -655,7 +665,7 @@ export default function EvaluationPage({ projectName, tasks, onTasksUpdated }: E
                           e.stopPropagation()
                           if (confirm('确定要删除这条测评记录吗？')) {
                             const newTasks = displayTasks.filter(t => t.taskId !== task.taskId)
-                            onTasksUpdated(newTasks)
+                            updateTasks(newTasks)
                             if (selectedTask?.taskId === task.taskId) {
                               setSelectedTask(null)
                             }
