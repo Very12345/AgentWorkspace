@@ -89,8 +89,13 @@ export default function ProjectEditor({ projectName, projectDescription, current
     setProjectData(data)
   }, [projectName, currentFile])
 
+  const isInitialized = useRef(false)
+  
   useEffect(() => {
-    loadDoc()
+    if (!isInitialized.current) {
+      isInitialized.current = true
+      loadDoc()
+    }
   }, [loadDoc])
 
   const hasAutoSynced = useRef<Set<string>>(new Set())
