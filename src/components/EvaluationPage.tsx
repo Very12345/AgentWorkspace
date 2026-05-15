@@ -86,45 +86,68 @@ export default function EvaluationPage({ projectName, tasks, onTasksUpdated }: E
         content: file.content || ''
       }))
 
-      const zipData: number[] = []
-      let offset = 0
-
-      for (const file of files) {
-        const contentBytes = new TextEncoder().encode(file.content)
-        const fileNameBytes = new TextEncoder().encode(file.name)
-        const crc32 = crc32Checksum(contentBytes)
-        const fileHeader = createZipFileHeader(fileNameBytes.length, contentBytes.length, crc32)
-        offset += fileHeader.length + contentBytes.length + 12
-
-        zipData.push(...fileHeader)
-        zipData.push(...contentBytes)
-        zipData.push(...createZipDataDescriptor(contentBytes.length, crc32))
-      }
-
-      const centralDirOffset = offset
-      const centralDir: number[] = []
-
-      for (const file of files) {
-        const fileNameBytes = new TextEncoder().encode(file.name)
-        const contentBytes = new TextEncoder().encode(file.content)
-        const crc32 = crc32Checksum(contentBytes)
-        centralDir.push(...createZipCentralDirEntry(fileNameBytes, contentBytes.length, crc32, centralDirOffset))
-      }
-
-      const eocd = createZipEOCD(centralDir.length, centralDirOffset)
-
-      zipData.push(...centralDir)
-      zipData.push(...eocd)
-
-      return new Blob([new Uint8Array(zipData)], { type: 'application/zip' })
+      return createZipBlob(files)
     } catch {
       return null
     }
   }
 
-  const crc32Checksum = (data: Uint8Array): number => {
+  const createZipBlob = (files: { name: string; content: string }[]): Blob => {
+    const zipParts: Uint8Array[] = []
+    let offset = 0
+    const fileEntries: { crc32: number; compressedSize: number; uncompressedSize: number; name: string; localHeaderOffset: number }[] = []
+    
+    for (const file of files) {
+      const content = file.content
+      const contentBytes = new TextEncoder().encode(content)
+      
+      const crc32 = crc32Bytes(contentBytes)
+      const compressedSize = contentBytes.length
+      const uncompressedSize = contentBytes.length
+      
+      const localHeader = createLocalFileHeader(file.name, compressedSize, uncompressedSize, crc32)
+      zipParts.push(localHeader)
+      
+      fileEntries.push({
+        crc32,
+        compressedSize,
+        uncompressedSize,
+        name: file.name,
+        localHeaderOffset: offset
+      })
+      
+      zipParts.push(contentBytes)
+      offset += localHeader.length + contentBytes.length
+    }
+    
+    const centralDirectoryOffset = offset
+    let centralDirectorySize = 0
+    
+    for (const entry of fileEntries) {
+      const centralEntry = createCentralDirectoryEntry(entry)
+      zipParts.push(centralEntry)
+      offset += centralEntry.length
+      centralDirectorySize += centralEntry.length
+    }
+    
+    const eocd = createEndOfCentralDirectory(fileEntries.length, centralDirectorySize, centralDirectoryOffset)
+    zipParts.push(eocd)
+    
+    const totalSize = zipParts.reduce((sum, part) => sum + part.length, 0)
+    const result = new Uint8Array(totalSize)
+    let writeOffset = 0
+    for (const part of zipParts) {
+      result.set(part, writeOffset)
+      writeOffset += part.length
+    }
+    
+    return new Blob([result], { type: 'application/zip' })
+  }
+
+  const crc32Bytes = (data: Uint8Array): number => {
     let crc = 0xFFFFFFFF
     const table: number[] = []
+    
     for (let i = 0; i < 256; i++) {
       let c = i
       for (let j = 0; j < 8; j++) {
@@ -132,70 +155,78 @@ export default function EvaluationPage({ projectName, tasks, onTasksUpdated }: E
       }
       table[i] = c
     }
+    
     for (let i = 0; i < data.length; i++) {
       crc = table[(crc ^ data[i]) & 0xFF] ^ (crc >>> 8)
     }
+    
     return (crc ^ 0xFFFFFFFF) >>> 0
   }
 
-  const createZipFileHeader = (fileNameLen: number, dataLen: number, crc: number): number[] => {
-    const header: number[] = []
-    header.push(0x50, 0x4B, 0x03, 0x04)
-    header.push(0x14, 0x00)
-    header.push(0x00, 0x00)
-    header.push(0x00, 0x00)
-    header.push(0x00, 0x00)
-    header.push(0x00, 0x00)
-    header.push((fileNameLen >> 0) & 0xFF, (fileNameLen >> 8) & 0xFF)
-    header.push(0x00, 0x00)
-    header.push((dataLen >> 0) & 0xFF, (dataLen >> 8) & 0xFF, (dataLen >> 16) & 0xFF, (dataLen >> 24) & 0xFF)
-    header.push((crc >> 0) & 0xFF, (crc >> 8) & 0xFF, (crc >> 16) & 0xFF, (crc >> 24) & 0xFF)
+  const createLocalFileHeader = (fileName: string, compressedSize: number, uncompressedSize: number, crc32: number): Uint8Array => {
+    const header = new Uint8Array(30 + fileName.length)
+    const view = new DataView(header.buffer)
+    
+    view.setUint32(0, 0x04034B50, true)
+    view.setUint16(4, 20, true)
+    view.setUint16(6, 0, true)
+    view.setUint16(8, 0, true)
+    view.setUint16(10, 0, true)
+    view.setUint16(12, 0, true)
+    view.setUint32(14, crc32, true)
+    view.setUint32(18, compressedSize, true)
+    view.setUint32(22, uncompressedSize, true)
+    view.setUint16(26, fileName.length, true)
+    view.setUint16(28, 0, true)
+    
+    const nameBytes = new TextEncoder().encode(fileName)
+    header.set(nameBytes, 30)
+    
     return header
   }
 
-  const createZipDataDescriptor = (dataLen: number, crc: number): number[] => {
-    const desc: number[] = []
-    desc.push(0x50, 0x4B, 0x07, 0x08)
-    desc.push((crc >> 0) & 0xFF, (crc >> 8) & 0xFF, (crc >> 16) & 0xFF, (crc >> 24) & 0xFF)
-    desc.push((dataLen >> 0) & 0xFF, (dataLen >> 8) & 0xFF, (dataLen >> 16) & 0xFF, (dataLen >> 24) & 0xFF)
-    desc.push((dataLen >> 0) & 0xFF, (dataLen >> 8) & 0xFF, (dataLen >> 16) & 0xFF, (dataLen >> 24) & 0xFF)
-    return desc
+  const createCentralDirectoryEntry = (entry: { name: string; crc32: number; compressedSize: number; uncompressedSize: number; localHeaderOffset: number }): Uint8Array => {
+    const entrySize = 46 + entry.name.length
+    const header = new Uint8Array(entrySize)
+    const view = new DataView(header.buffer)
+    
+    view.setUint32(0, 0x02014B50, true)
+    view.setUint16(4, 0, true)
+    view.setUint16(6, 20, true)
+    view.setUint16(8, 0, true)
+    view.setUint16(10, 0, true)
+    view.setUint16(12, 0, true)
+    view.setUint16(14, 0, true)
+    view.setUint32(16, entry.crc32, true)
+    view.setUint32(20, entry.compressedSize, true)
+    view.setUint32(24, entry.uncompressedSize, true)
+    view.setUint16(28, entry.name.length, true)
+    view.setUint16(30, 0, true)
+    view.setUint16(32, 0, true)
+    view.setUint16(34, 0, true)
+    view.setUint16(36, 0, true)
+    view.setUint32(38, 0, true)
+    view.setUint32(42, entry.localHeaderOffset, true)
+    
+    const nameBytes = new TextEncoder().encode(entry.name)
+    header.set(nameBytes, 46)
+    
+    return header
   }
 
-  const createZipCentralDirEntry = (fileNameBytes: Uint8Array, dataLen: number, crc: number, offset: number): number[] => {
-    const entry: number[] = []
-    entry.push(0x50, 0x4B, 0x01, 0x02)
-    entry.push(0x14, 0x00)
-    entry.push(0x14, 0x00)
-    entry.push(0x00, 0x00)
-    entry.push(0x00, 0x00)
-    entry.push(0x00, 0x00)
-    entry.push(0x00, 0x00)
-    entry.push((dataLen >> 0) & 0xFF, (dataLen >> 8) & 0xFF, (dataLen >> 16) & 0xFF, (dataLen >> 24) & 0xFF)
-    entry.push((crc >> 0) & 0xFF, (crc >> 8) & 0xFF, (crc >> 16) & 0xFF, (crc >> 24) & 0xFF)
-    entry.push((dataLen >> 0) & 0xFF, (dataLen >> 8) & 0xFF, (dataLen >> 16) & 0xFF, (dataLen >> 24) & 0xFF)
-    entry.push((fileNameBytes.length >> 0) & 0xFF, (fileNameBytes.length >> 8) & 0xFF)
-    entry.push(0x00, 0x00)
-    entry.push(0x00, 0x00)
-    entry.push(0x00, 0x00)
-    entry.push(0x00, 0x00)
-    entry.push(0x00, 0x00)
-    entry.push(0x00, 0x00)
-    entry.push((offset >> 0) & 0xFF, (offset >> 8) & 0xFF, (offset >> 16) & 0xFF, (offset >> 24) & 0xFF)
-    entry.push(...fileNameBytes)
-    return entry
-  }
-
-  const createZipEOCD = (centralDirLen: number, offset: number): number[] => {
-    const eocd: number[] = []
-    eocd.push(0x50, 0x4B, 0x05, 0x06)
-    eocd.push(0x00, 0x00)
-    eocd.push(0x00, 0x00)
-    eocd.push(0x01, 0x00)
-    eocd.push(0x01, 0x00)
-    eocd.push((centralDirLen >> 0) & 0xFF, (centralDirLen >> 8) & 0xFF, (centralDirLen >> 16) & 0xFF, (centralDirLen >> 24) & 0xFF)
-    eocd.push((offset >> 0) & 0xFF, (offset >> 8) & 0xFF, (offset >> 16) & 0xFF, (offset >> 24) & 0xFF)
-    eocd.push((centralDirLen >> 0) & 0xFF, (centralDirLen >> 8) & 0xFF)
+  const createEndOfCentralDirectory = (entryCount: number, centralDirSize: number, centralDirOffset: number): Uint8Array => {
+    const eocd = new Uint8Array(22)
+    const view = new DataView(eocd.buffer)
+    
+    view.setUint32(0, 0x06054B50, true)
+    view.setUint16(4, 0, true)
+    view.setUint16(6, 0, true)
+    view.setUint16(8, entryCount, true)
+    view.setUint16(10, entryCount, true)
+    view.setUint32(12, centralDirSize, true)
+    view.setUint32(16, centralDirOffset, true)
+    view.setUint16(20, 0, true)
+    
     return eocd
   }
 
