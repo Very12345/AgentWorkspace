@@ -78,6 +78,7 @@ export default function ProjectEditor({ projectName, projectDescription, current
   const [pushLoading, setPushLoading] = useState(false)
   const [showSyncedFiles, setShowSyncedFiles] = useState(false)
   const [syncedFilesList, setSyncedFilesList] = useState<string[]>([])
+  const [syncError, setSyncError] = useState('')
 
   const loadDoc = useCallback(async (keepCurrentFile: boolean = false) => {
     const data = await loadProjectData(projectName)
@@ -313,8 +314,11 @@ export default function ProjectEditor({ projectName, projectDescription, current
       if (newFileData) {
         setEditorContent(newFileData.content)
       }
+    } else if (force) {
+      alert('获取文件失败，请检查网络或配置')
     } else {
-      alert('获取文件失败')
+      setSyncError('自动同步失败，如有更新请手动同步')
+      setTimeout(() => setSyncError(''), 5000)
     }
   }
 
@@ -636,6 +640,11 @@ export default function ProjectEditor({ projectName, projectDescription, current
       </div>
 
       <div className="mb-4">
+        {syncError && (
+          <div className="mb-2 p-2 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-700">
+            ⚠️ {syncError}
+          </div>
+        )}
         <h3 className="text-sm text-gray-600 mb-2">文件列表</h3>
         <div className="border border-gray-200 rounded-lg overflow-hidden">
           {[...projectData.files]
