@@ -7,7 +7,7 @@ import katex from 'katex'
 import 'highlight.js/styles/atom-one-light.css'
 import 'katex/dist/katex.min.css'
 import type { ProjectData, EvaluationTask, Project } from '@/types'
-import { submitProblem, submitBundle, waitForEvaluation, getEvaluationStatus, fetchAndSaveEvaluationBackup, loadProjectData, loadProjects } from '@/lib/api'
+import { submitProblem, submitBundle, waitForEvaluation, getEvaluationStatus, fetchAndSaveEvaluationBackup, loadProjectData, loadProjects, saveProjectData } from '@/lib/api'
 
 hljs.registerLanguage('python', python)
 hljs.registerLanguage('javascript', javascript)
@@ -82,9 +82,23 @@ export default function EvaluationPage({ projectName, tasks, onTasksUpdated }: E
 
   const displayTasks = localTasks
 
-  const updateTasks = (newTasks: EvaluationTask[]) => {
+  const updateTasks = async (newTasks: EvaluationTask[], deletedTask?: EvaluationTask) => {
     setLocalTasks(newTasks)
     onTasksUpdated(newTasks)
+    
+    if (deletedTask) {
+      for (const project of projects) {
+        const projectData = await loadProjectData(project.name)
+        if (projectData.evaluationTasks) {
+          const taskExists = projectData.evaluationTasks.some(t => t.taskId === deletedTask.taskId)
+          if (taskExists) {
+            projectData.evaluationTasks = projectData.evaluationTasks.filter(t => t.taskId !== deletedTask.taskId)
+            await saveProjectData(project.name, projectData)
+            break
+          }
+        }
+      }
+    }
   }
 
   const handleTokenChange = (value: string) => {
@@ -665,7 +679,7 @@ export default function EvaluationPage({ projectName, tasks, onTasksUpdated }: E
                           e.stopPropagation()
                           if (confirm('确定要删除这条测评记录吗？')) {
                             const newTasks = displayTasks.filter(t => t.taskId !== task.taskId)
-                            updateTasks(newTasks)
+                            updateTasks(newTasks, task)
                             if (selectedTask?.taskId === task.taskId) {
                               setSelectedTask(null)
                             }
