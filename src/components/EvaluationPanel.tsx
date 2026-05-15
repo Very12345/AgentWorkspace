@@ -340,6 +340,14 @@ export default function EvaluationPanel({ projectName, tasks, onTasksUpdated, pr
     setPendingFiles(prev => prev.filter(f => f.id !== id));
   };
 
+  const handleTaskClick = async (task: EvaluationTask) => {
+    setSelectedTask(task);
+    
+    if (task.status !== 'complete' && task.status !== 'error') {
+      pollTaskStatus(task.taskId);
+    }
+  };
+
   const pollTaskStatus = async (taskId: string) => {
     try {
       const result = await waitForEvaluation(taskId, (status) => {
@@ -513,7 +521,8 @@ export default function EvaluationPanel({ projectName, tasks, onTasksUpdated, pr
             {displayTasks.map((task) => (
               <div 
                 key={task.taskId} 
-                className={`p-3 bg-white border rounded-lg ${selectedTask?.taskId === task.taskId ? 'border-blue-300' : 'border-gray-200'} relative`}
+                className={`p-3 bg-white border rounded-lg ${selectedTask?.taskId === task.taskId ? 'border-blue-300' : 'border-gray-200'} relative cursor-pointer hover:border-blue-200 transition-colors`}
+                onClick={() => handleTaskClick(task)}
               >
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
@@ -531,6 +540,9 @@ export default function EvaluationPanel({ projectName, tasks, onTasksUpdated, pr
                       <span className="text-xs text-gray-400">
                         {formatTime(task.submittedAt)}
                       </span>
+                    </div>
+                    <div className="text-xs text-gray-400 mt-1 font-mono">
+                      Task ID: {task.taskId}
                     </div>
                   </div>
                   <button
