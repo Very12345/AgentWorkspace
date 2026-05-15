@@ -8,7 +8,7 @@ import 'highlight.js/styles/atom-one-light.css'
 hljs.registerLanguage('python', python)
 hljs.registerLanguage('javascript', javascript)
 hljs.registerLanguage('json', json)
-import type { ProjectData, ProjectFile, Commit, EvaluationTask } from '@/types'
+import type { ProjectData, ProjectFile, Commit } from '@/types'
 import {
   loadProjectData,
   saveProjectFile,
@@ -23,7 +23,7 @@ import {
   pushToGitHub,
   shouldAutoSync
 } from '@/lib/api'
-import EvaluationPanel from './EvaluationPanel'
+
 
 interface ProjectEditorProps {
   projectName: string
@@ -74,7 +74,7 @@ export default function ProjectEditor({ projectName, projectDescription, current
   const [showPushToGitHub, setShowPushToGitHub] = useState(false)
   const [localGithubToken, setLocalGithubToken] = useState('')
   const [pushMessage, setPushMessage] = useState('')
-  const [showEvaluation, setShowEvaluation] = useState(false)
+  
   const [pushLoading, setPushLoading] = useState(false)
   const [showSyncedFiles, setShowSyncedFiles] = useState(false)
   const [syncedFilesList, setSyncedFilesList] = useState<string[]>([])
@@ -432,13 +432,6 @@ export default function ProjectEditor({ projectName, projectDescription, current
     }
   }
 
-  const handleTasksUpdated = async (tasks: EvaluationTask[]) => {
-    const data = await loadProjectData(projectName)
-    data.evaluationTasks = tasks
-    await saveProjectData(projectName, data)
-    setProjectData({ ...data })
-  }
-
   const handleRenameFile = async () => {
     if (renameFile === null || !renameName.trim()) return
     
@@ -523,16 +516,7 @@ export default function ProjectEditor({ projectName, projectDescription, current
           >
             同步仓库
           </button>
-          <button
-            onClick={() => setShowEvaluation(!showEvaluation)}
-            className={`px-4 py-2 rounded-lg ${
-              showEvaluation
-                ? 'bg-blue-50 border-blue-300 text-blue-700'
-                : 'border border-gray-300 text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            测评管理
-          </button>
+          
         </div>
       </div>
 
@@ -1086,27 +1070,7 @@ export default function ProjectEditor({ projectName, projectDescription, current
         </div>
       )}
 
-      {showEvaluation && (
-        <div className="fixed right-0 top-0 bottom-0 w-[480px] bg-white shadow-2xl border-l border-gray-200 z-40 overflow-hidden flex flex-col">
-          <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
-            <h3 className="font-semibold text-gray-800">测评管理</h3>
-            <button
-              onClick={() => setShowEvaluation(false)}
-              className="text-gray-500 hover:text-gray-700 hover:bg-gray-200 w-8 h-8 flex items-center justify-center rounded-lg transition-colors"
-            >
-              ×
-            </button>
-          </div>
-          <div className="flex-1 overflow-y-auto p-4">
-            <EvaluationPanel
-              projectName={projectName}
-              tasks={projectData.evaluationTasks || []}
-              onTasksUpdated={handleTasksUpdated}
-              projectData={projectData}
-            />
-          </div>
-        </div>
-      )}
+      
 
       {showSyncedFiles && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
