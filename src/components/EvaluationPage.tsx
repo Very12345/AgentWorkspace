@@ -50,6 +50,17 @@ export default function EvaluationPage({ projectName, tasks, onTasksUpdated }: E
     const loadProjectsList = async () => {
       const data = await loadProjects()
       setProjects(data)
+      
+      const allTasks: EvaluationTask[] = []
+      for (const project of data) {
+        const projectData = await loadProjectData(project.name)
+        if (projectData.evaluationTasks) {
+          allTasks.push(...projectData.evaluationTasks)
+        }
+      }
+      
+      allTasks.sort((a, b) => b.submittedAt - a.submittedAt)
+      onTasksUpdated(allTasks)
     }
     loadProjectsList()
   }, [])
