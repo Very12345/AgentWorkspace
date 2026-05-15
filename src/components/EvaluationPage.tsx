@@ -82,7 +82,7 @@ export default function EvaluationPage({ projectName, tasks, onTasksUpdated }: E
 
   const displayTasks = localTasks
 
-  const updateTasks = async (newTasks: EvaluationTask[], deletedTask?: EvaluationTask) => {
+  const updateTasks = async (newTasks: EvaluationTask[], deletedTask?: EvaluationTask, newTasksToSave?: EvaluationTask[]) => {
     setLocalTasks(newTasks)
     onTasksUpdated(newTasks)
     
@@ -98,6 +98,15 @@ export default function EvaluationPage({ projectName, tasks, onTasksUpdated }: E
           }
         }
       }
+    }
+    
+    if (newTasksToSave && newTasksToSave.length > 0 && selectedProject) {
+      const projectData = await loadProjectData(selectedProject)
+      if (!projectData.evaluationTasks) {
+        projectData.evaluationTasks = []
+      }
+      projectData.evaluationTasks = [...newTasksToSave, ...projectData.evaluationTasks]
+      await saveProjectData(selectedProject, projectData)
     }
   }
 
@@ -303,7 +312,7 @@ export default function EvaluationPage({ projectName, tasks, onTasksUpdated }: E
           }))
 
           const updatedTasks = [...newTasks, ...displayTasks]
-          updateTasks(updatedTasks)
+          updateTasks(updatedTasks, undefined, newTasks)
 
           for (const task of newTasks) {
             setTimeout(() => {
@@ -331,7 +340,7 @@ export default function EvaluationPage({ projectName, tasks, onTasksUpdated }: E
             }
 
             const newTasks = [newTask, ...displayTasks]
-            updateTasks(newTasks)
+            updateTasks(newTasks, undefined, [newTask])
 
             if (taskId) {
               setTimeout(() => {
@@ -353,7 +362,7 @@ export default function EvaluationPage({ projectName, tasks, onTasksUpdated }: E
           }
 
           const newTasks = [newTask, ...displayTasks]
-          updateTasks(newTasks)
+          updateTasks(newTasks, undefined, [newTask])
           setProblemText('')
 
           if (taskId) {
